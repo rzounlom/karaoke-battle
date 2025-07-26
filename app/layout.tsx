@@ -1,8 +1,11 @@
 import "./globals.css";
 
-import { Inter } from "next/font/google";
 import type { Metadata, Viewport } from "next";
+
+import { ClerkProvider } from "@clerk/nextjs";
+import { Inter } from "next/font/google";
 import { ThemeProvider } from "./providers/theme-provider";
+import { UserSync } from "@/components/user-sync";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,17 +28,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" suppressHydrationWarning>
+        <body className={inter.className}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <UserSync />
+            {children}
+          </ThemeProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

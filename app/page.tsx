@@ -3,6 +3,7 @@ import { Mic, Trophy, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserProfile } from "@/components/user-profile";
 
 export default function Home() {
   return (
@@ -15,7 +16,10 @@ export default function Home() {
             Karaoke Battle
           </h1>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center space-x-4">
+          <UserProfile />
+          <ThemeToggle />
+        </div>
       </header>
 
       {/* Hero Section */}

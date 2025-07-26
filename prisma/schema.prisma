@@ -1,0 +1,242 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String   @unique
+  username  String?  @unique
+  firstName String?
+  lastName  String?
+  avatar    String?
+  level     Int      @default(1)
+  experience Int     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  scores       Score[]
+  achievements UserAchievement[]
+  gameSessions GameSession[]
+  friends      Friendship[] @relation("UserFriends")
+  friendsOf    Friendship[] @relation("FriendsUser")
+  rooms        Room[]       @relation("RoomCreator")
+  roomMembers  RoomMember[]
+
+  @@map("users")
+}
+
+model Song {
+  id          String   @id @default(cuid())
+  title       String
+  artist      String
+  genre       String
+  difficulty  Difficulty
+  duration    String
+  year        Int?
+  lyrics      Json?    // Array of lyrics with timestamps
+  audioUrl    String?
+  thumbnail   String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  scores Score[]
+
+  @@unique([title, artist])
+  @@map("songs")
+}
+
+model Score {
+  id          String   @id @default(cuid())
+  userId      String
+  songId      String
+  totalScore  Int
+  accuracy    Float
+  timing      Float
+  pitch       Float
+  lyrics      Float
+  perfectNotes Int
+  currentStreak Int
+  maxStreak   Int
+  gameMode    GameMode
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@map("scores")
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  icon        String
+  rarity      Rarity
+  points      Int
+  criteria    Json     // Achievement criteria
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  // Relations
+  userAchievements UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime    @default(now())
+
+  // Relations
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+model GameSession {
+  id        String   @id @default(cuid())
+  userId    String
+  songId    String
+  gameMode  GameMode
+  status    GameStatus
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+  score     Int?
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("game_sessions")
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String?
+  creatorId   String
+  gameMode    GameMode
+  status      RoomStatus @default(WAITING)
+  maxPlayers  Int      @default(8)
+  currentSong String?
+  startedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  creator User        @relation("RoomCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  members RoomMember[]
+
+  @@map("rooms")
+}
+
+model RoomMember {
+  id       String @id @default(cuid())
+  roomId   String
+  userId   String
+  joinedAt DateTime @default(now())
+  isReady  Boolean  @default(false)
+  score    Int?     @default(0)
+
+  // Relations
+  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@map("room_members")
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userId    String
+  friendId  String
+  status    FriendshipStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user   User @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("FriendsUser", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@map("friendships")
+}
+
+model Tournament {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  theme       String?
+  maxPlayers  Int
+  currentPlayers Int @default(0)
+  rounds      Int
+  status      TournamentStatus @default(UPCOMING)
+  startDate   DateTime
+  endDate     DateTime?
+  prize       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("tournaments")
+}
+
+// Enums
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum GameMode {
+  SINGLE_PLAYER
+  MULTIPLAYER
+  TOURNAMENT
+}
+
+enum GameStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum RoomStatus {
+  WAITING
+  PLAYING
+  FINISHED
+}
+
+enum Rarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum TournamentStatus {
+  UPCOMING
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
