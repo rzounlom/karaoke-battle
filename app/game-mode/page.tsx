@@ -16,7 +16,10 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserProfile } from "@/components/user-profile";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useUser } from "@clerk/nextjs";
 
 const gameModes = [
   {
@@ -93,9 +96,12 @@ const activeTournaments = [
 ];
 
 export default function GameModePage() {
+  const { isSignedIn, isLoaded } = useUser();
+  const router = useRouter();
   const [selectedMode, setSelectedMode] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState("");
   const [showCopied, setShowCopied] = useState(false);
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
 
   const selectedGameMode = gameModes.find((mode) => mode.id === selectedMode);
 
@@ -112,6 +118,37 @@ export default function GameModePage() {
     }
   };
 
+  const handleStartGame = () => {
+    if (!isLoaded) return; // Still loading auth state
+
+    // Determine destination based on selected game mode
+    let intendedDestination = "/gameplay";
+    if (selectedMode === "multiplayer") {
+      intendedDestination = "/gameplay?mode=multiplayer";
+    } else if (selectedMode === "tournament") {
+      intendedDestination = "/gameplay?mode=tournament";
+    }
+
+    if (!isSignedIn) {
+      setShowSignInPrompt(true);
+      // Store the intended destination for after sign-in
+      sessionStorage.setItem("intendedDestination", intendedDestination);
+      return;
+    }
+
+    // User is signed in, navigate to gameplay
+    router.push(intendedDestination);
+  };
+
+  const handleSignIn = () => {
+    // Close the modal and redirect to sign-in with return URL
+    setShowSignInPrompt(false);
+    const intendedDestination =
+      sessionStorage.getItem("intendedDestination") || "/gameplay";
+    const returnUrl = encodeURIComponent(intendedDestination);
+    router.push(`/sign-in?redirect_url=${returnUrl}`);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
       {/* Header */}
@@ -126,7 +163,10 @@ export default function GameModePage() {
             Choose Game Mode
           </h1>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center space-x-4">
+          <UserProfile />
+          <ThemeToggle />
+        </div>
       </header>
 
       <div className="container mx-auto px-6 py-8">
@@ -323,12 +363,14 @@ export default function GameModePage() {
                   </div>
 
                   <div className="space-y-4">
-                    <Link href="/gameplay">
-                      <Button variant="karaoke" className="w-full py-3">
-                        <Play className="mr-2 h-5 w-5" />
-                        Start {selectedGameMode.title}
-                      </Button>
-                    </Link>
+                    <Button
+                      variant="karaoke"
+                      className="w-full py-3"
+                      onClick={handleStartGame}
+                    >
+                      <Play className="mr-2 h-5 w-5" />
+                      Start {selectedGameMode.title}
+                    </Button>
 
                     {selectedMode === "single" && (
                       <Button variant="outline" className="w-full py-3">
@@ -394,6 +436,43 @@ export default function GameModePage() {
           </div>
         </div>
       </div>
+
+      {/* Sign In Prompt Modal */}
+      {showSignInPrompt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <Mic className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">
+                Sign In to Start Playing
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                You need to sign in to start a karaoke battle. Create an account
+                or sign in to continue.
+              </p>
+
+              <div className="space-y-3">
+                <Button
+                  variant="karaoke"
+                  className="w-full"
+                  onClick={handleSignIn}
+                >
+                  Sign In
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowSignInPrompt(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

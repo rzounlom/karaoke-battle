@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/protected-route";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserProfile } from "@/components/user-profile";
 
 // Mock lyrics with timestamps
 const mockLyrics = [
@@ -149,6 +150,7 @@ export default function GameplayPage() {
                 Score
               </div>
             </div>
+            <UserProfile />
             <ThemeToggle />
           </div>
         </header>

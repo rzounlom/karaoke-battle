@@ -6,6 +6,9 @@ const isPublicRoute = createRouteMatcher([
   "/songs",
   "/game-mode",
   "/api/user/sync",
+  "/sign-in", // Add sign-in page to public routes
+  "/sign-up", // Add sign-up page to public routes (Clerk might redirect here)
+  "/sso-callback", // Clerk SSO callback route
 ]);
 
 // Define routes that should be completely ignored by Clerk
@@ -21,8 +24,10 @@ export default clerkMiddleware(async (auth, req) => {
   // For all other routes, require authentication
   const { userId } = await auth();
   if (!userId) {
-    // Redirect to sign-in page
-    return Response.redirect(new URL("/sign-in", req.url));
+    // Redirect to sign-in with return URL
+    const signInUrl = new URL("/sign-in", req.url);
+    signInUrl.searchParams.set("redirect_url", req.url);
+    return Response.redirect(signInUrl);
   }
 });
 

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/protected-route";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserProfile } from "@/components/user-profile";
 import { formatScore } from "@/lib/utils";
 import { useState } from "react";
 
@@ -136,7 +137,10 @@ export default function ResultsPage() {
               Performance Results
             </h1>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center space-x-4">
+            <UserProfile />
+            <ThemeToggle />
+          </div>
         </header>
 
         <div className="container mx-auto px-6 py-8">

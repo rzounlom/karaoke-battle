@@ -2,6 +2,7 @@ import "./globals.css";
 
 import type { Metadata, Viewport } from "next";
 
+import { AuthRedirectHandler } from "@/components/auth-redirect-handler";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "./providers/theme-provider";
@@ -38,6 +39,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             <UserSync />
+            <AuthRedirectHandler />
             {children}
           </ThemeProvider>
         </body>

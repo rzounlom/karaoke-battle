@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { UserProfile } from "@/components/user-profile";
 import { useState } from "react";
 
 // Mock song data - in real app this would come from database
@@ -226,7 +227,10 @@ export default function SongsPage() {
             Choose Your Song
           </h1>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center space-x-4">
+          <UserProfile />
+          <ThemeToggle />
+        </div>
       </header>
 
       <div className="container mx-auto px-6 py-8">
