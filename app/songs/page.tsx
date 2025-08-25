@@ -10,184 +10,86 @@ import {
   Star,
   Users,
 } from "lucide-react";
+import {
+  Song,
+  SongWithDuration,
+  filterSongs,
+  getAllSongs,
+  getAvailableDifficulties,
+  getAvailableGenres,
+  loadSongDurations,
+} from "@/lib/songs-data";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
-import { useState } from "react";
 
-// Mock song data - in real app this would come from database
-const mockSongs = [
-  {
-    id: 1,
-    title: "Bohemian Rhapsody",
-    artist: "Queen",
-    genre: "Rock",
-    difficulty: "Hard",
-    duration: "5:55",
-    rating: 4.8,
-    plays: 1250,
-    year: 1975,
-  },
-  {
-    id: 2,
-    title: "Imagine",
-    artist: "John Lennon",
-    genre: "Pop",
-    difficulty: "Medium",
-    duration: "3:03",
-    rating: 4.6,
-    plays: 890,
-    year: 1971,
-  },
-  {
-    id: 3,
-    title: "Hotel California",
-    artist: "Eagles",
-    genre: "Rock",
-    difficulty: "Medium",
-    duration: "6:30",
-    rating: 4.7,
-    plays: 1100,
-    year: 1976,
-  },
-  {
-    id: 4,
-    title: "Wonderwall",
-    artist: "Oasis",
-    genre: "Rock",
-    difficulty: "Easy",
-    duration: "4:18",
-    rating: 4.5,
-    plays: 1500,
-    year: 1995,
-  },
-  {
-    id: 5,
-    title: "Shape of You",
-    artist: "Ed Sheeran",
-    genre: "Pop",
-    difficulty: "Medium",
-    duration: "3:53",
-    rating: 4.4,
-    plays: 980,
-    year: 2017,
-  },
-  {
-    id: 6,
-    title: "Sweet Child O' Mine",
-    artist: "Guns N' Roses",
-    genre: "Rock",
-    difficulty: "Hard",
-    duration: "5:56",
-    rating: 4.9,
-    plays: 1350,
-    year: 1987,
-  },
-  {
-    id: 7,
-    title: "Billie Jean",
-    artist: "Michael Jackson",
-    genre: "Pop",
-    difficulty: "Medium",
-    duration: "4:54",
-    rating: 4.7,
-    plays: 1200,
-    year: 1982,
-  },
-  {
-    id: 8,
-    title: "Stairway to Heaven",
-    artist: "Led Zeppelin",
-    genre: "Rock",
-    difficulty: "Hard",
-    duration: "8:02",
-    rating: 4.9,
-    plays: 1400,
-    year: 1971,
-  },
-  {
-    id: 9,
-    title: "Uptown Funk",
-    artist: "Mark Ronson ft. Bruno Mars",
-    genre: "Pop",
-    difficulty: "Easy",
-    duration: "3:57",
-    rating: 4.3,
-    plays: 1100,
-    year: 2014,
-  },
-  {
-    id: 10,
-    title: "Smells Like Teen Spirit",
-    artist: "Nirvana",
-    genre: "Rock",
-    difficulty: "Medium",
-    duration: "5:01",
-    rating: 4.8,
-    plays: 1300,
-    year: 1991,
-  },
-  {
-    id: 11,
-    title: "Rolling in the Deep",
-    artist: "Adele",
-    genre: "Pop",
-    difficulty: "Hard",
-    duration: "3:48",
-    rating: 4.6,
-    plays: 950,
-    year: 2010,
-  },
-  {
-    id: 12,
-    title: "Hey Jude",
-    artist: "The Beatles",
-    genre: "Pop",
-    difficulty: "Easy",
-    duration: "7:11",
-    rating: 4.7,
-    plays: 1600,
-    year: 1968,
-  },
-];
-
-const genres = ["All", "Rock", "Pop", "Hip Hop", "Country", "Jazz", "R&B"];
-const difficulties = ["All", "Easy", "Medium", "Hard"];
-const sortOptions = ["Popular", "Rating", "Newest", "Duration"];
+const sortOptions = ["Title", "Artist", "Newest", "Genre"];
 
 export default function SongsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("All");
   const [selectedDifficulty, setSelectedDifficulty] = useState("All");
-  const [sortBy, setSortBy] = useState("Popular");
-  const [selectedSong, setSelectedSong] = useState<
-    (typeof mockSongs)[0] | null
-  >(null);
+  const [sortBy, setSortBy] = useState("Title");
+  const [selectedSong, setSelectedSong] = useState<SongWithDuration | null>(
+    null
+  );
+  const [songsWithDurations, setSongsWithDurations] = useState<
+    SongWithDuration[]
+  >([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredSongs = mockSongs
+  // Get data from the new songs system
+  const allSongs = getAllSongs();
+  const genres = getAvailableGenres();
+  const difficulties = getAvailableDifficulties();
+
+  // Load song durations on component mount
+  useEffect(() => {
+    const loadDurations = async () => {
+      setLoading(true);
+      try {
+        const songsWithDurations = await loadSongDurations();
+        setSongsWithDurations(songsWithDurations);
+      } catch (error) {
+        console.error("Failed to load song durations:", error);
+        // Fallback to songs without durations
+        setSongsWithDurations(
+          allSongs.map((song) => ({ ...song, duration: 0 }))
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDurations();
+  }, [allSongs]);
+
+  const filteredSongs = songsWithDurations
     .filter((song) => {
-      const matchesSearch =
-        song.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        song.artist.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesGenre =
         selectedGenre === "All" || song.genre === selectedGenre;
       const matchesDifficulty =
         selectedDifficulty === "All" || song.difficulty === selectedDifficulty;
+      const matchesSearch =
+        !searchTerm ||
+        song.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        song.artist.toLowerCase().includes(searchTerm.toLowerCase());
 
-      return matchesSearch && matchesGenre && matchesDifficulty;
+      return matchesGenre && matchesDifficulty && matchesSearch;
     })
     .sort((a, b) => {
       switch (sortBy) {
-        case "Popular":
-          return b.plays - a.plays;
-        case "Rating":
-          return b.rating - a.rating;
+        case "Title":
+          return a.title.localeCompare(b.title);
+        case "Artist":
+          return a.artist.localeCompare(b.artist);
         case "Newest":
-          return b.year - a.year;
-        case "Duration":
-          return a.duration.localeCompare(b.duration);
+          return (b.year || 0) - (a.year || 0);
+        case "Genre":
+          return (a.genre || "").localeCompare(b.genre || "");
         default:
           return 0;
       }
@@ -206,12 +108,47 @@ export default function SongsPage() {
     }
   };
 
-  const formatPlays = (plays: number) => {
-    if (plays >= 1000) {
-      return `${(plays / 1000).toFixed(1)}k`;
-    }
-    return plays.toString();
+  const formatDuration = (seconds: number) => {
+    if (!seconds || seconds === 0) return "--:--";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
+        {/* Header */}
+        <header className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-4">
+            <Link href="/">
+              <Button variant="ghost" size="icon">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <h1 className="text-2xl font-bold karaoke-text-gradient">
+              Choose Your Song
+            </h1>
+          </div>
+          <div className="flex items-center space-x-4">
+            <UserProfile />
+            <ThemeToggle />
+          </div>
+        </header>
+
+        <div className="container mx-auto px-6 py-8">
+          <div className="flex items-center justify-center min-h-96">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+              <p className="text-gray-600 dark:text-gray-400">
+                Loading song durations...
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
@@ -290,6 +227,7 @@ export default function SongsPage() {
 
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 {filteredSongs.length} songs found
+                {loading && " (loading durations...)"}
               </div>
             </div>
 
@@ -315,28 +253,37 @@ export default function SongsPage() {
                       </p>
                     </div>
                     <div className="flex items-center space-x-1 ml-2">
-                      <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                      <span className="text-sm font-medium">{song.rating}</span>
+                      <Mic className="h-4 w-4 text-purple-500" />
+                      <span className="text-sm font-medium text-purple-600">
+                        Available
+                      </span>
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(
-                          song.difficulty
-                        )}`}
-                      >
-                        {song.difficulty}
-                      </span>
+                      {song.difficulty && (
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(
+                            song.difficulty
+                          )}`}
+                        >
+                          {song.difficulty}
+                        </span>
+                      )}
                       <div className="flex items-center space-x-1 text-sm text-gray-500">
                         <Clock className="h-3 w-3" />
-                        <span>{song.duration}</span>
+                        <span>{formatDuration(song.duration)}</span>
                       </div>
                     </div>
                     <div className="flex items-center space-x-1 text-sm text-gray-500">
-                      <Users className="h-3 w-3" />
-                      <span>{formatPlays(song.plays)}</span>
+                      {song.genre && (
+                        <>
+                          <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                            {song.genre}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -369,19 +316,19 @@ export default function SongsPage() {
                     <div className="flex items-center justify-center space-x-4 mb-6">
                       <div className="text-center">
                         <div className="text-2xl font-bold text-purple-600">
-                          {selectedSong.rating}
+                          {selectedSong.year || "N/A"}
                         </div>
-                        <div className="text-sm text-gray-500">Rating</div>
+                        <div className="text-sm text-gray-500">Year</div>
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-purple-600">
-                          {formatPlays(selectedSong.plays)}
+                          {selectedSong.genre || "N/A"}
                         </div>
-                        <div className="text-sm text-gray-500">Plays</div>
+                        <div className="text-sm text-gray-500">Genre</div>
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-bold text-purple-600">
-                          {selectedSong.duration}
+                          {formatDuration(selectedSong.duration)}
                         </div>
                         <div className="text-sm text-gray-500">Duration</div>
                       </div>
@@ -389,15 +336,15 @@ export default function SongsPage() {
                   </div>
 
                   <div className="space-y-4">
-                    <Link href="/game-mode">
+                    <Link href={`/game-mode?songId=${selectedSong.id}`}>
                       <Button variant="karaoke" className="w-full py-3">
                         <Play className="mr-2 h-5 w-5" />
                         Start Battle
                       </Button>
                     </Link>
-                    <Button variant="outline" className="w-full py-3">
-                      Preview Song
-                    </Button>
+                    <div className="text-xs text-center text-gray-500 dark:text-gray-400">
+                      🎵 Audio & Lyrics Ready
+                    </div>
                   </div>
 
                   <div className="space-y-3">
@@ -415,10 +362,10 @@ export default function SongsPage() {
                         <span className="text-gray-500">Difficulty:</span>
                         <span
                           className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(
-                            selectedSong.difficulty
+                            selectedSong.difficulty || "medium"
                           )}`}
                         >
-                          {selectedSong.difficulty}
+                          {selectedSong.difficulty || "Medium"}
                         </span>
                       </div>
                       <div className="flex justify-between">

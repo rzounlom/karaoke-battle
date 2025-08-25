@@ -3,8 +3,6 @@
 import {
   ArrowLeft,
   Heart,
-  Mic,
-  MicOff,
   Pause,
   Play,
   SkipBack,
@@ -16,109 +14,201 @@ import {
   VolumeX,
   Zap,
 } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
 import { formatScore, formatTime } from "@/lib/utils";
-import { useEffect, useRef, useState } from "react";
 
+import { AudioTest } from "@/components/audio-test";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { MicrophoneTest } from "@/components/microphone-test";
 import { ProtectedRoute } from "@/components/protected-route";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
+import { getSongById } from "@/lib/songs-data";
+import { useKaraokeGameplay } from "@/hooks/use-karaoke-gameplay";
+import { useSearchParams } from "next/navigation";
 
-// Mock lyrics with timestamps
-const mockLyrics = [
-  { time: 0, text: "Is this the real life?" },
-  { time: 3, text: "Is this just fantasy?" },
-  { time: 6, text: "Caught in a landslide" },
-  { time: 9, text: "No escape from reality" },
-  { time: 12, text: "Open your eyes" },
-  { time: 15, text: "Look up to the skies and see" },
-  { time: 18, text: "I'm just a poor boy" },
-  { time: 21, text: "I need no sympathy" },
-  { time: 24, text: "Because I'm easy come, easy go" },
-  { time: 27, text: "Little high, little low" },
-];
+function GameplayContent() {
+  const searchParams = useSearchParams();
+  const songId = searchParams.get("songId") || "bohemian-rhapsody";
+  const mode = searchParams.get("mode") || "single";
 
-export default function GameplayPage() {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  // Get song data based on URL parameter
+  const currentSong = getSongById(songId);
+  console.log("🎵 Song ID from URL:", songId);
+  console.log("🎵 Current song found:", currentSong);
+  const [showStopModal, setShowStopModal] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [totalTime] = useState(180); // 3 minutes
-  const [score, setScore] = useState(0);
-  const [currentLyricIndex, setCurrentLyricIndex] = useState(0);
-  const [accuracy, setAccuracy] = useState(0);
-  const [timing, setTiming] = useState(0);
-  const [pitch, setPitch] = useState(0);
-  const [feedback, setFeedback] = useState("");
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [currentStreak, setCurrentStreak] = useState(0);
-  const [perfectNotes, setPerfectNotes] = useState(0);
+
+  // Use the new karaoke gameplay hook
+  const {
+    // State
+    isPlaying,
+    isRecording,
+    isVoiceActive,
+    currentTime,
+    score,
+    accuracy,
+    timing,
+    pitch,
+    transcript,
+    volumeLevel,
+    microphoneReady,
+    error: gameplayError,
+    feedback,
+    showFeedback,
+    currentStreak,
+    perfectNotes,
+    isListening,
+    voiceError,
+
+    // Actions
+    loadSong,
+    startGame,
+    stopGame,
+    resetGame,
+
+    // Audio player methods
+    getAudioPlayer,
+    getCurrentSong,
+  } = useKaraokeGameplay({
+    onScoreUpdate: (newScore, newAccuracy, newTiming, newPitch) => {
+      console.log("🎯 Score update:", {
+        newScore,
+        newAccuracy,
+        newTiming,
+        newPitch,
+      });
+    },
+    onGameEnd: (finalScore, totalAccuracy) => {
+      console.log("🎮 Game ended:", { finalScore, totalAccuracy });
+      // TODO: Navigate to results page
+    },
+    voiceThreshold: 0.02,
+  });
+
   const [multiplayerPlayers] = useState([
     { name: "John", score: 7200, isCurrent: false, avatar: "J" },
     { name: "Sarah", score: 6800, isCurrent: false, avatar: "S" },
     { name: "You", score: 8450, isCurrent: true, avatar: "Y" },
   ]);
 
-  const intervalRef = useRef<number | null>(null);
-
+  // Load song when component mounts
   useEffect(() => {
-    if (isPlaying) {
-      intervalRef.current = window.setInterval(() => {
-        setCurrentTime((prev) => {
-          const newTime = prev + 1;
+    if (currentSong) {
+      console.log("🎵 Loading song:", currentSong.title);
+      console.log("🎵 Song details:", currentSong);
 
-          // Update current lyric based on time
-          const lyricIndex =
-            mockLyrics.findIndex((lyric) => lyric.time > newTime) - 1;
-          if (lyricIndex !== currentLyricIndex && lyricIndex >= 0) {
-            setCurrentLyricIndex(lyricIndex);
-            // Simulate scoring
-            const newScore = score + Math.floor(Math.random() * 100) + 50;
-            setScore(newScore);
-            const newAccuracy = Math.floor(Math.random() * 20) + 80;
-            const newTiming = Math.floor(Math.random() * 15) + 85;
-            const newPitch = Math.floor(Math.random() * 25) + 75;
-            setAccuracy(newAccuracy);
-            setTiming(newTiming);
-            setPitch(newPitch);
-            setCurrentStreak((prev) => prev + 1);
-            setPerfectNotes((prev) => prev + 1);
-            setFeedback("Perfect! +100 pts");
-            setShowFeedback(true);
-            setTimeout(() => setShowFeedback(false), 2000);
+      loadSong(currentSong)
+        .then((success) => {
+          if (success) {
+            console.log("✅ Song loaded successfully");
+            const audioPlayer = getAudioPlayer();
+            if (audioPlayer) {
+              console.log("🎵 Audio player state:", audioPlayer.getState());
+              console.log("🎵 Ready to play:", audioPlayer.isReadyToPlay());
+            }
+          } else {
+            console.error("❌ Failed to load song");
           }
-
-          return newTime;
+        })
+        .catch((error) => {
+          console.error("❌ Error loading song:", error);
         });
-      }, 1000);
+    }
+  }, [currentSong, loadSong, getAudioPlayer]);
+
+  const togglePlay = async () => {
+    if (isPlaying) {
+      // Show stop confirmation modal
+      setShowStopModal(true);
     } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      // Start both audio and recording
+      if (!microphoneReady) {
+        console.warn("Microphone not ready yet");
+        alert(
+          "Microphone is still initializing. Please wait a moment and try again."
+        );
+        return;
+      }
+
+      const audioPlayer = getAudioPlayer();
+      if (!audioPlayer) {
+        console.warn("Audio player not initialized");
+        alert("Audio player not initialized. Please refresh the page.");
+        return;
+      }
+
+      if (!audioPlayer.isReadyToPlay()) {
+        console.warn("Audio player not ready to play");
+        alert("Audio is still loading. Please wait a moment and try again.");
+        return;
+      }
+
+      try {
+        console.log("🎮 Starting karaoke gameplay...");
+        await startGame();
+        console.log("✅ Karaoke gameplay started successfully");
+      } catch (error) {
+        console.error("❌ Failed to start gameplay:", error);
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        alert(`Failed to start gameplay: ${errorMsg}`);
       }
     }
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isPlaying, currentLyricIndex, score]);
-
-  const togglePlay = () => {
-    setIsPlaying(!isPlaying);
   };
 
-  const toggleRecording = () => {
-    setIsRecording(!isRecording);
+  const confirmStop = () => {
+    stopGame();
+    setShowStopModal(false);
+    // TODO: Navigate to results page or show final score
+  };
+
+  const cancelStop = () => {
+    setShowStopModal(false);
   };
 
   const toggleMute = () => {
+    const audioPlayer = getAudioPlayer();
+    if (audioPlayer) {
+      if (isMuted) {
+        audioPlayer.unmute();
+      } else {
+        audioPlayer.mute();
+      }
+    }
     setIsMuted(!isMuted);
   };
 
-  const progress = (currentTime / totalTime) * 100;
+  const audioPlayer = getAudioPlayer();
+  const progress =
+    currentSong && currentSong.duration
+      ? (currentTime / (currentSong.duration * 1000)) * 100
+      : audioPlayer && audioPlayer.getState().duration > 0
+      ? (currentTime / audioPlayer.getState().duration) * 100
+      : 0;
+
+  // Safety check for song not found
+  if (!currentSong) {
+    console.error("GameplayContent: Song not found for ID:", songId);
+    return (
+      <ProtectedRoute>
+        <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold mb-4">Song Not Found</h1>
+            <p className="mb-4">
+              The song with ID &quot;{songId}&quot; was not found.
+            </p>
+            <Link
+              href="/songs"
+              className="text-blue-400 hover:text-blue-300 underline"
+            >
+              ← Back to Songs
+            </Link>
+          </div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute>
@@ -136,8 +226,12 @@ export default function GameplayPage() {
               </Button>
             </Link>
             <div className="text-gray-900 dark:text-white">
-              <h1 className="text-lg font-semibold">Bohemian Rhapsody</h1>
-              <p className="text-sm text-gray-600 dark:text-white/70">Queen</p>
+              <h1 className="text-lg font-semibold">
+                {currentSong?.title || "Loading..."}
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-white/70">
+                {currentSong?.artist || "Loading..."}
+              </p>
             </div>
           </div>
 
@@ -163,10 +257,14 @@ export default function GameplayPage() {
               <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-gray-900 dark:text-white font-medium">
-                    {formatTime(currentTime)}
+                    {formatTime(currentTime / 1000)}
                   </span>
                   <span className="text-gray-600 dark:text-white/70">
-                    {formatTime(totalTime)}
+                    {currentSong && currentSong.duration
+                      ? formatTime(currentSong.duration)
+                      : audioPlayer
+                      ? formatTime(audioPlayer.getState().duration / 1000)
+                      : "0:00"}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-white/20 rounded-full h-2">
@@ -177,28 +275,116 @@ export default function GameplayPage() {
                 </div>
               </div>
 
+              {/* Debug Info - Temporary */}
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800 mb-4">
+                <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                  <strong>Debug Info:</strong>
+                  <br />
+                  Song ID: {songId}
+                  <br />
+                  Song Found: {currentSong ? "✅" : "❌"}
+                  <br />
+                  Audio Player: {audioPlayer ? "✅" : "❌"}
+                  <br />
+                  Audio Ready: {audioPlayer?.debugReadyToPlay() ? "✅" : "❌"}
+                  <br />
+                  Microphone: {microphoneReady ? "✅" : "❌"}
+                  <br />
+                  Playing: {isPlaying ? "✅" : "❌"}
+                  <br />
+                  Recording: {isRecording ? "🎤" : "⏹️"}
+                  <br />
+                  Voice: {isVoiceActive ? "🗣️" : "🤫"}
+                  <br />
+                  Volume:{" "}
+                  {isFinite(volumeLevel) ? Math.round(volumeLevel) : "N/A"}%
+                  <br />
+                  Time: {formatTime(currentTime / 1000)}
+                  <br />
+                  Duration:{" "}
+                  {audioPlayer
+                    ? formatTime(audioPlayer.getState().duration / 1000)
+                    : "N/A"}
+                </div>
+              </div>
+
               {/* Lyrics Display */}
               <div className="bg-white/80 dark:bg-white/10 rounded-xl p-8 text-center min-h-[400px] flex flex-col justify-center backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-                {currentLyricIndex < mockLyrics.length ? (
+                {currentSong ? (
                   <div className="space-y-8">
                     {/* Current Lyric */}
                     <div className="space-y-4">
-                      <div className="lyrics-text text-gray-900 dark:text-white">
-                        {mockLyrics[currentLyricIndex].text}
-                      </div>
+                      {(() => {
+                        if (!audioPlayer) {
+                          return (
+                            <div className="lyrics-text text-gray-900 dark:text-white">
+                              Loading lyrics...
+                            </div>
+                          );
+                        }
 
-                      {/* Next Lyric Preview */}
-                      {currentLyricIndex + 1 < mockLyrics.length && (
-                        <div className="text-2xl md:text-3xl text-gray-600 dark:text-white/50">
-                          {mockLyrics[currentLyricIndex + 1].text}
-                        </div>
-                      )}
+                        const currentLyric = audioPlayer.getCurrentLyric();
+                        const upcomingLyrics = audioPlayer.getUpcomingLyrics(2);
+
+                        return (
+                          <>
+                            <div className="lyrics-text text-gray-900 dark:text-white">
+                              {currentLyric || "Get ready..."}
+                            </div>
+
+                            {/* Next Lyric Preview */}
+                            {upcomingLyrics.length > 0 && (
+                              <div className="text-2xl md:text-3xl text-gray-600 dark:text-white/50">
+                                {upcomingLyrics[0] || ""}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
 
                     {/* Real-time Feedback */}
                     {showFeedback && (
                       <div className="text-3xl font-bold text-green-600 dark:text-green-400 lyrics-highlight">
                         {feedback}
+                      </div>
+                    )}
+
+                    {/* Error Display */}
+                    {(voiceError || gameplayError) && (
+                      <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border border-red-200 dark:border-red-800">
+                        <div className="text-sm text-red-600 dark:text-red-400 font-medium mb-1">
+                          Error:
+                        </div>
+                        <div className="text-gray-900 dark:text-white mb-2">
+                          {voiceError || gameplayError || "Unknown error"}
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          <div>
+                            <p>
+                              • Check your browser&apos;s microphone permissions
+                            </p>
+                            <p>• Try refreshing the page</p>
+                            <p>• Make sure your microphone is connected</p>
+                            <p>• Grant microphone access when prompted</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Voice Activity Status */}
+                    {isVoiceActive && (
+                      <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                        <div className="text-sm text-green-600 dark:text-green-400 font-medium mb-1">
+                          🎤 Voice Detected!
+                        </div>
+                        <div className="text-gray-900 dark:text-white">
+                          Keep singing! Your voice is being captured for
+                          scoring.
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          Volume Level: {Math.round(volumeLevel)}%
+                        </div>
                       </div>
                     )}
 
@@ -233,9 +419,22 @@ export default function GameplayPage() {
                       </div>
                     </div>
                   </div>
-                ) : (
+                ) : currentSong ? (
                   <div className="text-gray-900 dark:text-white text-2xl">
                     Song Complete!
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-900 dark:text-white">
+                    <div className="text-2xl font-bold mb-4">
+                      Song Not Found
+                    </div>
+                    <div className="text-gray-600 dark:text-gray-400 mb-6">
+                      The selected song could not be loaded. Please try
+                      selecting a different song.
+                    </div>
+                    <Link href="/songs">
+                      <Button variant="karaoke">Choose Another Song</Button>
+                    </Link>
                   </div>
                 )}
               </div>
@@ -263,6 +462,27 @@ export default function GameplayPage() {
                       <Play className="h-8 w-8" />
                     )}
                   </Button>
+                  <div className="text-center mt-2">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {isPlaying
+                        ? "Click to stop and score"
+                        : "Click to start singing"}
+                    </div>
+                    {isRecording && (
+                      <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                        🎤 Recording...
+                      </div>
+                    )}
+                    {audioPlayer && microphoneReady ? (
+                      <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                        🎵 Ready to Play
+                      </div>
+                    ) : (
+                      <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        ⏳ Loading...
+                      </div>
+                    )}
+                  </div>
 
                   <Button
                     variant="ghost"
@@ -275,20 +495,6 @@ export default function GameplayPage() {
 
                 <div className="flex justify-center items-center space-x-4 mt-4">
                   <Button
-                    variant={isRecording ? "karaoke" : "outline"}
-                    size="sm"
-                    onClick={toggleRecording}
-                    className="text-gray-900 dark:text-white"
-                  >
-                    {isRecording ? (
-                      <Mic className="mr-2 h-4 w-4" />
-                    ) : (
-                      <MicOff className="mr-2 h-4 w-4" />
-                    )}
-                    {isRecording ? "Recording" : "Start Recording"}
-                  </Button>
-
-                  <Button
                     variant="outline"
                     size="sm"
                     className="text-gray-900 dark:text-white"
@@ -300,6 +506,75 @@ export default function GameplayPage() {
                       <Volume2 className="mr-2 h-4 w-4" />
                     )}
                     {isMuted ? "Unmute" : "Mute Music"}
+                  </Button>
+
+                  {/* Test Audio Button - Temporary */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-gray-900 dark:text-white"
+                    onClick={() => {
+                      if (audioPlayer) {
+                        console.log("=== AUDIO DEBUG INFO ===");
+                        console.log(
+                          "Audio Player Debug:",
+                          audioPlayer.getDebugInfo()
+                        );
+                        console.log(
+                          "Ready to play:",
+                          audioPlayer.debugReadyToPlay()
+                        );
+                        console.log("========================");
+
+                        if (audioPlayer.getState().isPlaying) {
+                          audioPlayer.pause();
+                        } else {
+                          console.log("Attempting to play via test button...");
+                          audioPlayer
+                            .play()
+                            .then(() => {
+                              console.log("✅ Test play succeeded!");
+                            })
+                            .catch((e) => {
+                              console.error("❌ Test play failed:", e);
+                              alert(`Play failed: ${e.message}`);
+                            });
+                        }
+                      } else {
+                        console.error("No audio player available");
+                      }
+                    }}
+                  >
+                    🎵 Debug & Test
+                  </Button>
+
+                  {/* Manual Load Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-gray-900 dark:text-white"
+                    onClick={() => {
+                      if (currentSong) {
+                        console.log("🔄 Manually loading song...");
+                        loadSong(currentSong)
+                          .then((success) => {
+                            console.log("Manual load result:", success);
+                            alert(
+                              success
+                                ? "Song loaded successfully!"
+                                : "Failed to load song"
+                            );
+                          })
+                          .catch((error) => {
+                            console.error("Manual load error:", error);
+                            alert(`Load error: ${error.message}`);
+                          });
+                      } else {
+                        alert("No song selected");
+                      }
+                    }}
+                  >
+                    🔄 Manual Load
                   </Button>
                 </div>
               </div>
@@ -385,6 +660,12 @@ export default function GameplayPage() {
                 </div>
               </div>
 
+              {/* Microphone Test - Temporary for debugging */}
+              <MicrophoneTest />
+
+              {/* Audio Test - Temporary for debugging */}
+              <AudioTest />
+
               {/* Quick Actions */}
               <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
                 <h3 className="text-gray-900 dark:text-white font-semibold mb-4">
@@ -415,6 +696,62 @@ export default function GameplayPage() {
           </div>
         </div>
       </div>
+
+      {/* Stop Confirmation Modal */}
+      {showStopModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-red-500 to-pink-500 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <Pause className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">
+                Stop the Round?
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Stopping now will end your performance and calculate your final
+                score. Your current progress will be saved.
+              </p>
+
+              <div className="space-y-3">
+                <Button
+                  variant="karaoke"
+                  className="w-full"
+                  onClick={confirmStop}
+                >
+                  Stop & Calculate Score
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={cancelStop}
+                >
+                  Continue Singing
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </ProtectedRoute>
+  );
+}
+
+export default function GameplayPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">
+              Loading gameplay...
+            </p>
+          </div>
+        </div>
+      }
+    >
+      <GameplayContent />
+    </Suspense>
   );
 }

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Audio Test</title>
+  </head>
+  <body>
+    <h1>Audio Test</h1>
+
+    <h2>Wonderwall</h2>
+    <audio controls preload="auto">
+      <source src="/audio/wonderwall.mp3" type="audio/mpeg" />
+      Your browser does not support the audio element.
+    </audio>
+
+    <h2>Hotel California</h2>
+    <audio controls preload="auto">
+      <source src="/audio/hotel-california.mp3" type="audio/mpeg" />
+      Your browser does not support the audio element.
+    </audio>
+
+    <script>
+      // Test programmatic audio loading
+      const testAudio = new Audio("/audio/wonderwall.mp3");
+
+      testAudio.addEventListener("loadstart", () => {
+        console.log("Test: Load started");
+      });
+
+      testAudio.addEventListener("canplay", () => {
+        console.log("Test: Can play");
+      });
+
+      testAudio.addEventListener("error", (e) => {
+        console.error("Test: Audio error", e, testAudio.error);
+      });
+
+      testAudio.load();
+
+      // Test play after 2 seconds
+      setTimeout(() => {
+        testAudio
+          .play()
+          .then(() => {
+            console.log("Test: Play succeeded");
+          })
+          .catch((error) => {
+            console.error("Test: Play failed", error);
+          });
+      }, 2000);
+    </script>
+  </body>
+</html>

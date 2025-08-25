@@ -121,12 +121,16 @@ export default function GameModePage() {
   const handleStartGame = () => {
     if (!isLoaded) return; // Still loading auth state
 
+    // Get song ID from URL params
+    const searchParams = new URLSearchParams(window.location.search);
+    const songId = searchParams.get("songId") || "bohemian-rhapsody";
+
     // Determine destination based on selected game mode
-    let intendedDestination = "/gameplay";
+    let intendedDestination = `/gameplay?songId=${songId}`;
     if (selectedMode === "multiplayer") {
-      intendedDestination = "/gameplay?mode=multiplayer";
+      intendedDestination = `/gameplay?songId=${songId}&mode=multiplayer`;
     } else if (selectedMode === "tournament") {
-      intendedDestination = "/gameplay?mode=tournament";
+      intendedDestination = `/gameplay?songId=${songId}&mode=tournament`;
     }
 
     if (!isSignedIn) {
