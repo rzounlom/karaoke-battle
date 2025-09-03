@@ -93,6 +93,11 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   // Initialize Web Audio API for voice activity detection
   const initializeWebAudio = useCallback(async (stream: MediaStream) => {
     try {
+      // Check if Web Audio API is available
+      if (!window.AudioContext && !window.webkitAudioContext) {
+        throw new Error("Web Audio API not supported in this browser");
+      }
+
       const audioContext = new (window.AudioContext ||
         window.webkitAudioContext)();
       audioContextRef.current = audioContext;
@@ -160,11 +165,14 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
     };
 
     analyzeAudio();
-  }, [voiceThreshold, onVoiceActivity]);
+  }, [voiceThreshold]);
 
   // Initialize speech recognition
   useEffect(() => {
-    if (typeof window !== "undefined" && "webkitSpeechRecognition" in window) {
+    if (
+      typeof window !== "undefined" &&
+      (window.webkitSpeechRecognition || window.SpeechRecognition)
+    ) {
       try {
         const SpeechRecognition =
           window.webkitSpeechRecognition || window.SpeechRecognition;
@@ -293,7 +301,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
         error: "Speech recognition not supported in this browser",
       }));
     }
-  }, [continuous, interimResults, lang, onTranscript]);
+  }, [continuous, interimResults, lang]);
 
   // Start voice recognition
   const startListening = useCallback(async () => {
@@ -446,6 +454,11 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
       try {
         console.log("🎤 Initializing microphone...");
 
+        // Check if getUserMedia is available
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error("getUserMedia not supported in this browser");
+        }
+
         // Request microphone permission first
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -470,31 +483,48 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
         console.log("✅ Microphone initialized successfully");
       } catch (error) {
         console.error("❌ Failed to initialize microphone:", error);
+
+        // Provide more specific error messages
+        let errorMessage = "Failed to initialize microphone";
+        if (error instanceof Error) {
+          if (error.name === "NotAllowedError") {
+            errorMessage =
+              "Microphone permission denied. Please allow microphone access and refresh the page.";
+          } else if (error.name === "NotFoundError") {
+            errorMessage =
+              "No microphone found. Please connect a microphone and refresh the page.";
+          } else if (error.name === "NotReadableError") {
+            errorMessage =
+              "Microphone is already in use by another application.";
+          } else {
+            errorMessage = error.message;
+          }
+        }
+
         setState((prev) => ({
           ...prev,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Failed to initialize microphone",
+          error: errorMessage,
           microphoneReady: false,
         }));
       }
     };
 
-    // Add a small delay to ensure the component is fully mounted
-    const timer = setTimeout(() => {
-      initializeMicrophone();
-    }, 100);
+    // Check if we're in a browser environment and add a minimal delay
+    if (typeof window !== "undefined" && navigator.mediaDevices) {
+      const timer = setTimeout(() => {
+        initializeMicrophone();
+      }, 100); // Reduced delay to ensure faster initialization
 
-    return () => {
-      clearTimeout(timer);
-      // Don't call stopListening here as it resets the microphone state
-      // Just clean up the stream if it exists
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-        streamRef.current = null;
-      }
-    };
+      return () => {
+        clearTimeout(timer);
+        // Don't call stopListening here as it resets the microphone state
+        // Just clean up the stream if it exists
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+          streamRef.current = null;
+        }
+      };
+    }
   }, [initializeWebAudio]);
 
   return {
