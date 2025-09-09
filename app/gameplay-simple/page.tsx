@@ -13,7 +13,7 @@ import { getSongById } from "@/lib/songs-data";
 import { useSearchParams } from "next/navigation";
 import { useSimpleKaraoke } from "@/hooks/use-simple-karaoke";
 
-function GameplayContent() {
+function SimpleGameplayContent() {
   const searchParams = useSearchParams();
   const songId = searchParams.get("songId") || "bohemian-rhapsody";
 
@@ -24,7 +24,6 @@ function GameplayContent() {
   const {
     isPlaying,
     isRecording,
-    isPaused,
     currentTime,
     score,
     accuracy,
@@ -43,10 +42,8 @@ function GameplayContent() {
     scoringEvents,
     loadSong,
     startGame,
-    pauseGame,
-    resumeGame,
+    stopGame,
     getAudioPlayer,
-    clearError,
   } = useSimpleKaraoke({
     onScoreUpdate: (newScore, newAccuracy) => {
       console.log("Score update:", newScore, newAccuracy);
@@ -56,90 +53,36 @@ function GameplayContent() {
     },
   });
 
-  // Clear any error state when component mounts
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      console.log("🎵 Component mounted, clearing error state");
-      clearError();
-    }
-  }, [clearError]);
-
   // Load song when component mounts
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    console.log("🎵 useEffect triggered, currentSong:", currentSong);
-    console.log("🎵 songId from URL:", songId);
-
     if (currentSong) {
-      console.log("🎵 Loading song:", currentSong);
       setTimeout(async () => {
-        try {
-          // Additional validation before loading
-          if (!currentSong.audioFile) {
-            console.error("❌ Song missing audioFile property:", currentSong);
-            return;
-          }
-          const success = await loadSong(currentSong);
-          if (success) {
-            console.log("✅ Song loaded successfully");
-            // Check if audio is ready after loading
-            const audioPlayer = getAudioPlayer();
-            if (audioPlayer) {
-              const audioState = audioPlayer.getAudioState();
-              console.log("Audio state after loading:", audioState);
-
-              // If not ready, wait a bit more and check again
-              if (!audioPlayer.isReadyToPlay()) {
-                console.log("Audio not ready immediately, waiting...");
-                setTimeout(() => {
-                  const retryState = audioPlayer.getAudioState();
-                  console.log("Audio state after retry:", retryState);
-                }, 1000);
-              }
-            }
-          } else {
-            console.error("❌ Failed to load song");
-          }
-        } catch (error) {
-          console.error("❌ Error loading song:", error);
-        } finally {
-          setIsInitializing(false);
+        const success = await loadSong(currentSong);
+        if (success) {
+          console.log("✅ Song loaded successfully");
+        } else {
+          console.error("❌ Failed to load song");
         }
+        setIsInitializing(false);
       }, 500);
     }
-  }, [currentSong]);
+  }, [currentSong, loadSong]);
 
   const togglePlay = async () => {
     if (isPlaying) {
-      // If currently playing, pause
-      pauseGame();
-    } else if (isPaused) {
-      // If paused, resume
-      try {
-        await resumeGame();
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        alert(`Failed to resume gameplay: ${errorMsg}`);
-      }
+      stopGame();
     } else {
-      // If stopped, start
       if (!microphoneReady) {
         alert("Microphone is not ready. Please wait a moment and try again.");
         return;
       }
 
       const audioPlayer = getAudioPlayer();
-      if (!audioPlayer) {
-        alert("Audio player not initialized. Please refresh the page.");
-        return;
-      }
-
-      if (!audioPlayer.isReadyToPlay()) {
-        const audioState = audioPlayer.getAudioState();
-        console.log("Audio not ready:", audioState);
+      if (!audioPlayer || !audioPlayer.isReadyToPlay()) {
         alert(
-          `Audio is not ready to play. Ready state: ${audioState.readyState}, Duration: ${audioState.duration}. Please wait a moment and try again.`
+          "Audio is not ready to play. Please wait a moment and try again."
         );
         return;
       }
@@ -177,9 +120,7 @@ function GameplayContent() {
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Song Not Found</h1>
-            <p className="mb-4">
-              The song with ID &quot;{songId}&quot; was not found.
-            </p>
+            <p className="mb-4">The song with ID "{songId}" was not found.</p>
             <Link
               href="/songs"
               className="text-blue-400 hover:text-blue-300 underline"
@@ -309,15 +250,6 @@ function GameplayContent() {
 
             {/* Lyrics Display */}
             <div className="bg-white/80 dark:bg-white/10 rounded-xl p-8 text-center min-h-[400px] flex flex-col justify-center backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-              {(() => {
-                console.log(
-                  "🎵 Rendering lyrics display - isInitializing:",
-                  isInitializing,
-                  "error:",
-                  error
-                );
-                return null;
-              })()}
               {isInitializing ? (
                 <div className="text-gray-900 dark:text-white text-xl">
                   Initializing...
@@ -359,7 +291,7 @@ function GameplayContent() {
                         Your voice:
                       </div>
                       <div className="text-lg text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                        &ldquo;{transcript}&rdquo;
+                        "{transcript}"
                       </div>
                     </div>
                   )}
@@ -399,8 +331,6 @@ function GameplayContent() {
                 >
                   {isPlaying ? (
                     <Pause className="h-8 w-8" />
-                  ) : isPaused ? (
-                    <Play className="h-8 w-8" />
                   ) : (
                     <Play className="h-8 w-8" />
                   )}
@@ -408,11 +338,7 @@ function GameplayContent() {
 
                 <div className="text-center">
                   <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {isPlaying
-                      ? "Click to pause"
-                      : isPaused
-                      ? "Click to resume"
-                      : "Click to start singing"}
+                    {isPlaying ? "Click to stop" : "Click to start singing"}
                   </div>
                   {!microphoneReady && (
                     <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
@@ -421,16 +347,7 @@ function GameplayContent() {
                   )}
                   {microphoneReady && !isInitializing && (
                     <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                      {(() => {
-                        const audioPlayer = getAudioPlayer();
-                        if (audioPlayer && audioPlayer.isReadyToPlay()) {
-                          return "🎵 Ready to play";
-                        } else if (audioPlayer) {
-                          return "⏳ Audio loading...";
-                        } else {
-                          return "🎵 Ready to play";
-                        }
-                      })()}
+                      🎵 Ready to play
                     </div>
                   )}
                 </div>
@@ -455,8 +372,6 @@ function GameplayContent() {
                 Microphone: {microphoneReady ? "✅" : "❌"}
                 <br />
                 Playing: {isPlaying ? "✅" : "❌"}
-                <br />
-                Paused: {isPaused ? "⏸️" : "❌"}
                 <br />
                 Recording: {isRecording ? "🎤" : "⏹️"}
                 <br />
@@ -486,7 +401,7 @@ function GameplayContent() {
   );
 }
 
-export default function GameplayPage() {
+export default function SimpleGameplayPage() {
   return (
     <Suspense
       fallback={
@@ -500,7 +415,7 @@ export default function GameplayPage() {
         </div>
       }
     >
-      <GameplayContent />
+      <SimpleGameplayContent />
     </Suspense>
   );
 }

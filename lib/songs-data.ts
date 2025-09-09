@@ -66,6 +66,16 @@ export const availableSongs: Song[] = [
     difficulty: "Easy",
     year: 1995,
   },
+  {
+    id: "so-sick",
+    title: "So Sick",
+    artist: "Ne-Yo",
+    audioFile: "/audio/so-sick.mp3",
+    lrcFile: "/audio/so-sick.lrc",
+    genre: "R&B",
+    difficulty: "Medium",
+    year: 2006,
+  },
 ];
 
 // Note: billie-jean.lrc exists but no corresponding mp3 file
@@ -75,7 +85,10 @@ export const availableSongs: Song[] = [
  * Get song by ID
  */
 export function getSongById(id: string): Song | undefined {
-  return availableSongs.find((song) => song.id === id);
+  console.log("🎵 getSongById called with id:", id);
+  const song = availableSongs.find((song) => song.id === id);
+  console.log("🎵 getSongById result:", song);
+  return song;
 }
 
 /**

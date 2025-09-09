@@ -65,42 +65,8 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
   const feedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scoreUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Voice recognition hook
-  const {
-    isListening,
-    isRecording: voiceRecording,
-    transcript,
-    confidence,
-    error: voiceError,
-    isVoiceActive,
-    volumeLevel,
-    microphoneReady,
-    startListening,
-    stopListening,
-    reset: resetVoice,
-  } = useVoiceRecognition({
-    continuous: false, // Don't start automatically
-    interimResults: true,
-    lang: "en-US",
-    voiceThreshold,
-    onTranscript: (transcript, isFinal, confidence) => {
-      if (isFinal && transcript.trim()) {
-        handleTranscriptUpdate(transcript, confidence);
-      }
-    },
-    onVoiceActivity: (isActive, level) => {
-      setState((prev) => ({
-        ...prev,
-        isVoiceActive: isActive,
-        volumeLevel: level,
-      }));
-    },
-  });
-
   // Initialize audio player
   const initializeAudioPlayer = useCallback((song: Song) => {
-    console.log("🎵 Initializing audio player for:", song.title);
-
     if (audioPlayerRef.current) {
       audioPlayerRef.current.destroy();
     }
@@ -123,12 +89,11 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
     });
 
     player.onEndedCallback(() => {
-      console.log("🎵 Song ended");
       // Handle game end will be set up later
     });
 
     player.onLyricsLoadedCallback((lrc) => {
-      console.log("🎵 Lyrics loaded successfully");
+      // Lyrics loaded
     });
 
     return player;
@@ -138,16 +103,17 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
   const loadSong = useCallback(
     async (song: Song) => {
       try {
-        console.log("🎵 Loading song:", song.title);
-
-        const player = initializeAudioPlayer(song);
+        // Only initialize if we don't have an audio player or if it's a different song
+        let player = audioPlayerRef.current;
+        if (!player || currentSongRef.current?.id !== song.id) {
+          player = initializeAudioPlayer(song);
+        }
 
         await player.loadSong(song);
 
-        console.log("✅ Song loaded successfully");
         return true;
       } catch (error) {
-        console.error("❌ Failed to load song:", error);
+        console.error("Failed to load song:", error);
         setState((prev) => ({
           ...prev,
           error: error instanceof Error ? error.message : "Failed to load song",
@@ -227,11 +193,53 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
     [onScoreUpdate]
   );
 
+  // Memoize the transcript callback to prevent unnecessary re-initializations
+  const onTranscriptCallback = useCallback(
+    (transcript: string, isFinal: boolean, confidence: number) => {
+      if (isFinal && transcript.trim()) {
+        handleTranscriptUpdate(transcript, confidence);
+      }
+    },
+    [handleTranscriptUpdate]
+  );
+
+  // Memoize the voice activity callback
+  const onVoiceActivityCallback = useCallback(
+    (isActive: boolean, level: number) => {
+      setState((prev) => ({
+        ...prev,
+        isVoiceActive: isActive,
+        volumeLevel: level,
+      }));
+    },
+    []
+  );
+
+  // Voice recognition hook
+  const {
+    isListening,
+    isRecording: voiceRecording,
+    transcript,
+    confidence,
+    error: voiceError,
+    isVoiceActive,
+    volumeLevel,
+    microphoneReady,
+    startListening,
+    stopListening,
+    reset: resetVoice,
+  } = useVoiceRecognition({
+    continuous: false, // Don't start automatically
+    interimResults: true,
+    lang: "en-US",
+    voiceThreshold,
+    onTranscript: onTranscriptCallback,
+    onVoiceActivity: onVoiceActivityCallback,
+  });
+
   // Start gameplay
   const startGame = useCallback(async () => {
     try {
-      console.log("🎮 Starting karaoke gameplay...");
-
       if (!audioPlayerRef.current) {
         throw new Error("Audio player not initialized");
       }
@@ -249,10 +257,8 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
         isRecording: true,
         error: null,
       }));
-
-      console.log("✅ Karaoke gameplay started successfully");
     } catch (error) {
-      console.error("❌ Failed to start gameplay:", error);
+      console.error("Failed to start gameplay:", error);
       setState((prev) => ({
         ...prev,
         error:
@@ -263,8 +269,6 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
 
   // Stop gameplay
   const stopGame = useCallback(() => {
-    console.log("🎮 Stopping karaoke gameplay...");
-
     if (audioPlayerRef.current) {
       audioPlayerRef.current.pause();
     }
@@ -278,14 +282,10 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
       isPlaying: false,
       isRecording: false,
     }));
-
-    console.log("✅ Karaoke gameplay stopped");
   }, [stopListening]);
 
   // Handle game end
   const handleGameEnd = useCallback(() => {
-    console.log("🎮 Game ended, calculating final score...");
-
     stopListening();
 
     if (onGameEnd) {
@@ -301,8 +301,6 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
 
   // Reset game state
   const resetGame = useCallback(() => {
-    console.log("🎮 Resetting game state...");
-
     if (audioPlayerRef.current) {
       audioPlayerRef.current.stop();
     }

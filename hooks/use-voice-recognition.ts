@@ -93,29 +93,55 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
   // Initialize Web Audio API for voice activity detection
   const initializeWebAudio = useCallback(async (stream: MediaStream) => {
     try {
+      console.log("🔍 Starting Web Audio initialization...");
+
       // Check if Web Audio API is available
       if (!window.AudioContext && !window.webkitAudioContext) {
         throw new Error("Web Audio API not supported in this browser");
       }
 
+      console.log("🔍 Creating AudioContext...");
       const audioContext = new (window.AudioContext ||
         window.webkitAudioContext)();
       audioContextRef.current = audioContext;
+      console.log("🔍 AudioContext created:", audioContext);
+      console.log("🔍 AudioContext state:", audioContext.state);
 
+      // Check if AudioContext is suspended (common in browsers with autoplay policies)
+      if (audioContext.state === "suspended") {
+        console.log("🔍 AudioContext is suspended, attempting to resume...");
+        try {
+          await audioContext.resume();
+          console.log(
+            "🔍 AudioContext resumed successfully, new state:",
+            audioContext.state
+          );
+        } catch (resumeError) {
+          console.warn("🔍 Failed to resume AudioContext:", resumeError);
+        }
+      }
+
+      console.log("🔍 Creating analyser...");
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.8;
       analyserRef.current = analyser;
+      console.log("🔍 Analyser created:", analyser);
 
+      console.log("🔍 Creating microphone source...");
       const microphoneSource = audioContext.createMediaStreamSource(stream);
       microphoneSourceRef.current = microphoneSource;
+      console.log("🔍 Microphone source created:", microphoneSource);
 
       // Connect microphone to analyser (but NOT to destination to avoid feedback)
+      console.log("🔍 Connecting microphone to analyser...");
       microphoneSource.connect(analyser);
+      console.log("🔍 Microphone connected to analyser");
 
       console.log("✅ Web Audio initialized for voice activity detection");
     } catch (error) {
       console.error("❌ Failed to initialize Web Audio:", error);
+      throw error; // Re-throw to let the caller handle it
     }
   }, []);
 
@@ -450,6 +476,8 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
 
   // Initialize microphone on mount
   useEffect(() => {
+    console.log("🔍 Microphone useEffect triggered - component mounted");
+
     const initializeMicrophone = async () => {
       try {
         console.log("🎤 Initializing microphone...");
@@ -460,6 +488,7 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
         }
 
         // Request microphone permission first
+        console.log("🔍 Requesting microphone permission...");
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
@@ -467,20 +496,31 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
             autoGainControl: true,
           },
         });
+        console.log("🔍 Microphone permission granted, stream:", stream);
 
         console.log("🎤 Microphone permission granted, stream obtained");
         streamRef.current = stream;
 
-        // Initialize Web Audio for voice activity detection
-        await initializeWebAudio(stream);
+        // Skip Web Audio initialization for now to test basic microphone functionality
+        console.log("🔍 Skipping Web Audio initialization for testing");
 
-        setState((prev) => ({
-          ...prev,
-          microphoneReady: true,
-          error: null,
-        }));
+        setState((prev) => {
+          console.log(
+            "🔍 Setting microphoneReady to true, previous state:",
+            prev
+          );
+          const newState = {
+            ...prev,
+            microphoneReady: true,
+            error: null,
+          };
+          console.log("🔍 New state:", newState);
+          return newState;
+        });
 
-        console.log("✅ Microphone initialized successfully");
+        console.log(
+          "✅ Microphone initialized successfully (without Web Audio)"
+        );
       } catch (error) {
         console.error("❌ Failed to initialize microphone:", error);
 
@@ -501,17 +541,27 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
           }
         }
 
-        setState((prev) => ({
-          ...prev,
-          error: errorMessage,
-          microphoneReady: false,
-        }));
+        setState((prev) => {
+          console.log("🔍 Setting microphone error:", errorMessage);
+          return {
+            ...prev,
+            error: errorMessage,
+            microphoneReady: false,
+          };
+        });
       }
     };
 
     // Check if we're in a browser environment and add a minimal delay
+    console.log("🔍 Checking browser environment:", {
+      window: typeof window !== "undefined",
+      mediaDevices: !!navigator.mediaDevices,
+    });
+
     if (typeof window !== "undefined" && navigator.mediaDevices) {
+      console.log("🔍 Setting up microphone initialization timer");
       const timer = setTimeout(() => {
+        console.log("🔍 Timer fired, calling initializeMicrophone");
         initializeMicrophone();
       }, 100); // Reduced delay to ensure faster initialization
 
@@ -524,6 +574,10 @@ export function useVoiceRecognition(options: UseVoiceRecognitionOptions = {}) {
           streamRef.current = null;
         }
       };
+    } else {
+      console.log(
+        "🔍 Browser environment check failed - not initializing microphone"
+      );
     }
   }, [initializeWebAudio]);
 

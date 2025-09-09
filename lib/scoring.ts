@@ -87,21 +87,37 @@ export function calculateTimingScore(
 }
 
 /**
- * Calculate pitch accuracy (simplified version)
+ * Calculate pitch accuracy using real pitch data
  */
 export function calculatePitchScore(
   expectedLyrics: LyricWord[],
-  userWords: UserWord[]
+  userWords: UserWord[],
+  detectedPitchHz: number = 0
 ): number {
-  // For now, return a simulated pitch score
-  // In a real implementation, this would analyze audio frequency data
-  const baseScore = 85; // Base pitch score
-  const confidenceBonus =
-    (userWords.reduce((sum, word) => sum + word.confidence, 0) /
-      userWords.length) *
-    15;
+  if (detectedPitchHz <= 0) {
+    // Fallback to confidence-based scoring if no pitch detected
+    const baseScore = 70;
+    const confidenceBonus =
+      (userWords.reduce((sum, word) => sum + word.confidence, 0) /
+        userWords.length) *
+      30;
+    return Math.min(100, baseScore + confidenceBonus);
+  }
 
-  return Math.min(100, baseScore + confidenceBonus);
+  // For now, we'll use a simple pitch stability score
+  // In a full implementation, we'd compare against expected notes from the song
+  const pitchRange = { min: 80, max: 800 }; // Human voice range in Hz
+
+  if (detectedPitchHz < pitchRange.min || detectedPitchHz > pitchRange.max) {
+    return 50; // Out of human voice range
+  }
+
+  // Calculate pitch stability score (simplified)
+  // In reality, we'd compare against the song's melody
+  const baseScore = 80;
+  const pitchQuality = Math.min(20, Math.abs(detectedPitchHz - 220) / 10); // Rough quality metric
+
+  return Math.min(100, baseScore + pitchQuality);
 }
 
 /**
@@ -138,7 +154,8 @@ function calculateWordSimilarity(word1: string, word2: string): number {
 export function calculateKaraokeScore(
   expectedLyrics: LyricWord[],
   userTranscript: string,
-  userWords: UserWord[]
+  userWords: UserWord[],
+  detectedPitchHz: number = 0
 ): ScoringResult {
   // Extract expected words
   const expectedWords = expectedLyrics.map((lyric) => lyric.word);
@@ -151,7 +168,7 @@ export function calculateKaraokeScore(
   // Calculate individual scores
   const accuracy = calculateAccuracyScore(expectedWords, userWordList);
   const timing = calculateTimingScore(expectedLyrics, userWords);
-  const pitch = calculatePitchScore(expectedLyrics, userWords);
+  const pitch = calculatePitchScore(expectedLyrics, userWords, detectedPitchHz);
 
   // Calculate weighted total score
   const totalScore = accuracy * 0.5 + timing * 0.3 + pitch * 0.2;
