@@ -470,6 +470,16 @@ function GameplayContent() {
           </div>
 
           <div className="flex items-center space-x-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowHelpModal(true)}
+              className="text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              title="How Scoring Works"
+            >
+              <HelpCircle className="h-4 w-4 mr-2" />
+              Rules
+            </Button>
             <div className="text-center text-gray-900 dark:text-white">
               <div className="text-2xl font-bold">{score}</div>
               <div className="text-sm text-gray-600 dark:text-white/70">
@@ -730,20 +740,6 @@ function GameplayContent() {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Floating Rules Button */}
-        <div className="fixed right-6 top-[200px] z-40">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowHelpModal(true)}
-            className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 shadow-lg"
-            title="How Scoring Works"
-          >
-            <HelpCircle className="h-4 w-4 mr-2" />
-            Rules
-          </Button>
         </div>
 
         {/* Stop Confirmation Modal */}
