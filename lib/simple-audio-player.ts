@@ -82,71 +82,19 @@ export class SimpleAudioPlayer {
         return;
       }
 
+      // Validate audio file path
+      if (
+        !song.audioFile.startsWith("/") &&
+        !song.audioFile.startsWith("http")
+      ) {
+        console.error("❌ Invalid audio file path:", song.audioFile);
+        reject(new Error("Invalid audio file path"));
+        return;
+      }
+
       this.currentSong = song;
 
-      // Simple approach: just reset the existing audio element
-      console.log("🎵 Resetting audio element for new song");
-      this.audio.pause();
-      this.audio.currentTime = 0;
-      this.audio.src = "";
-
-      // Small delay to ensure reset is complete
-      setTimeout(() => {
-        this.audio.src = song.audioFile;
-        console.log("🎵 Audio element reset with src:", this.audio.src);
-
-        // Set up event listeners and start loading
-        this.audio.addEventListener("loadedmetadata", onLoadedMetadata, {
-          once: true,
-        });
-        this.audio.addEventListener("error", onError, { once: true });
-
-        // Set a timeout to prevent hanging
-        const timeout = setTimeout(() => {
-          cleanup();
-          reject(new Error("Audio loading timeout"));
-        }, 10000);
-
-        const originalResolve = resolve;
-        const originalReject = reject;
-
-        resolve = () => {
-          clearTimeout(timeout);
-          originalResolve();
-        };
-
-        reject = (error: Error) => {
-          clearTimeout(timeout);
-          originalReject(error);
-        };
-
-        // Start loading
-        console.log("🎵 About to call audio.load()");
-        this.audio.load();
-
-        // Check audio state immediately after load
-        setTimeout(() => {
-          console.log("🎵 Audio state after load():", {
-            readyState: this.audio.readyState,
-            duration: this.audio.duration,
-            src: this.audio.src,
-            error: this.audio.error,
-            networkState: this.audio.networkState,
-          });
-        }, 100);
-
-        // Check if audio starts loading after a longer delay
-        setTimeout(() => {
-          console.log("🎵 Audio state after 1 second:", {
-            readyState: this.audio.readyState,
-            duration: this.audio.duration,
-            src: this.audio.src,
-            error: this.audio.error,
-            networkState: this.audio.networkState,
-          });
-        }, 1000);
-      }, 10);
-
+      // Define event handlers first
       const onLoadedMetadata = async () => {
         console.log("🎵 Audio metadata loaded event triggered!");
         console.log("🎵 Audio metadata loaded:", {
@@ -185,6 +133,88 @@ export class SimpleAudioPlayer {
         this.audio.removeEventListener("loadedmetadata", onLoadedMetadata);
         this.audio.removeEventListener("error", onError);
       };
+
+      // Clean up any existing event listeners first
+      cleanup();
+
+      // Reset the audio element properly
+      console.log("🎵 Resetting audio element for new song");
+      this.audio.pause();
+      this.audio.currentTime = 0;
+
+      // Don't set src to empty string - this can cause the error
+      // Instead, directly set the new src
+      try {
+        this.audio.src = song.audioFile;
+        console.log("🎵 Audio element set with src:", this.audio.src);
+
+        // Verify the src was set correctly
+        if (!this.audio.src || this.audio.src === "") {
+          throw new Error("Failed to set audio source");
+        }
+      } catch (error) {
+        console.error("❌ Error setting audio src:", error);
+        cleanup();
+        reject(
+          new Error(
+            `Failed to set audio source: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`
+          )
+        );
+        return;
+      }
+
+      // Set up event listeners
+      this.audio.addEventListener("loadedmetadata", onLoadedMetadata, {
+        once: true,
+      });
+      this.audio.addEventListener("error", onError, { once: true });
+
+      // Set a timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error("Audio loading timeout"));
+      }, 10000);
+
+      const originalResolve = resolve;
+      const originalReject = reject;
+
+      resolve = () => {
+        clearTimeout(timeout);
+        originalResolve();
+      };
+
+      reject = (error: Error) => {
+        clearTimeout(timeout);
+        originalReject(error);
+      };
+
+      // Start loading
+      console.log("🎵 About to call audio.load()");
+      this.audio.load();
+
+      // Check audio state immediately after load
+      setTimeout(() => {
+        console.log("🎵 Audio state after load():", {
+          readyState: this.audio.readyState,
+          duration: this.audio.duration,
+          src: this.audio.src,
+          error: this.audio.error,
+          networkState: this.audio.networkState,
+        });
+      }, 100);
+
+      // Check if audio starts loading after a longer delay
+      setTimeout(() => {
+        console.log("🎵 Audio state after 1 second:", {
+          readyState: this.audio.readyState,
+          duration: this.audio.duration,
+          src: this.audio.src,
+          error: this.audio.error,
+          networkState: this.audio.networkState,
+        });
+      }, 1000);
     });
   }
 

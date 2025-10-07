@@ -472,7 +472,11 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
       microphoneReady,
       isVoiceActive,
       volumeLevel,
-      error: micError || prev.error,
+      // Only set error for critical microphone issues, not normal speech recognition events
+      error:
+        micError && micError !== "no-speech" && micError !== "aborted"
+          ? micError
+          : prev.error,
     }));
   }, [
     micRecording,

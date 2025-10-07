@@ -322,17 +322,89 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
         };
 
         recognition.onerror = (event: any) => {
-          console.error("🎤 Speech recognition error:", event.error);
-          setState((prev) => ({
-            ...prev,
-            isListening: false,
-            error: event.error,
-          }));
+          console.log("🎤 Speech recognition event:", event.error);
+
+          // Handle different types of errors
+          if (event.error === "no-speech") {
+            // This is normal - just means no speech was detected
+            // Don't treat this as an error that stops the game
+            console.log("🎤 No speech detected (normal behavior)");
+            setState((prev) => ({
+              ...prev,
+              isListening: false,
+              // Don't set error for no-speech
+            }));
+          } else if (event.error === "audio-capture") {
+            // This is a real error - microphone access issue
+            console.error("🎤 Microphone access error:", event.error);
+            setState((prev) => ({
+              ...prev,
+              isListening: false,
+              error: "Microphone access denied or unavailable",
+            }));
+          } else if (event.error === "not-allowed") {
+            // User denied microphone permission
+            console.error("🎤 Microphone permission denied:", event.error);
+            setState((prev) => ({
+              ...prev,
+              isListening: false,
+              error: "Microphone permission denied",
+            }));
+          } else {
+            // Other errors - log but don't necessarily stop the game
+            console.warn("🎤 Speech recognition warning:", event.error);
+            setState((prev) => ({
+              ...prev,
+              isListening: false,
+              // Only set error for critical issues
+              error: event.error === "network" ? "Network error" : null,
+            }));
+          }
         };
 
         recognition.onend = () => {
           console.log("🎤 Speech recognition ended");
           setState((prev) => ({ ...prev, isListening: false }));
+
+          // Auto-restart speech recognition if we're still recording
+          // This handles cases where speech recognition ends due to no speech
+          if (isRecordingRef.current && !isPausedRef.current) {
+            console.log("🎤 Auto-restarting speech recognition");
+            setTimeout(() => {
+              if (
+                recognitionRef.current &&
+                isRecordingRef.current &&
+                !isPausedRef.current
+              ) {
+                try {
+                  recognitionRef.current.start();
+                } catch (error) {
+                  console.log(
+                    "Failed to auto-restart speech recognition:",
+                    error
+                  );
+                  // If restart fails, try again after a longer delay
+                  setTimeout(() => {
+                    if (
+                      recognitionRef.current &&
+                      isRecordingRef.current &&
+                      !isPausedRef.current
+                    ) {
+                      try {
+                        recognitionRef.current.start();
+                        console.log("🎤 Speech recognition restarted on retry");
+                      } catch (retryError) {
+                        console.log(
+                          "Failed to restart speech recognition on retry:",
+                          retryError
+                        );
+                      }
+                    }
+                  }, 1000);
+                }
+              }
+            }, 100); // Small delay to ensure clean restart
+          }
         };
 
         console.log("✅ Speech recognition initialized");
