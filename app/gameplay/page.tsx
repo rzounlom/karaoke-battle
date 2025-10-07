@@ -1,6 +1,14 @@
 "use client";
 
-import { ArrowLeft, Pause, Play, Volume2, VolumeX } from "lucide-react";
+import {
+  ArrowLeft,
+  Music,
+  Pause,
+  Play,
+  RotateCcw,
+  Square,
+  Trophy,
+} from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -18,8 +26,20 @@ function GameplayContent() {
   const songId = searchParams.get("songId") || "bohemian-rhapsody";
 
   const currentSong = getSongById(songId);
-  const [isMuted, setIsMuted] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [showStopModal, setShowStopModal] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
+  const [gameEndReason, setGameEndReason] = useState<"completed" | "quit">(
+    "completed"
+  );
+  const [finalScore, setFinalScore] = useState({
+    totalScore: 0,
+    accuracy: 0,
+    timing: 0,
+    pitch: 0,
+    scoringEvents: 0,
+  });
 
   const {
     isPlaying,
@@ -30,8 +50,6 @@ function GameplayContent() {
     accuracy,
     timing,
     pitch,
-    pitchHz,
-    currentNote,
     transcript,
     volumeLevel,
     microphoneReady,
@@ -45,6 +63,7 @@ function GameplayContent() {
     startGame,
     pauseGame,
     resumeGame,
+    resetGame,
     getAudioPlayer,
     clearError,
   } = useSimpleKaraoke({
@@ -53,6 +72,21 @@ function GameplayContent() {
     },
     onGameEnd: (finalScore, totalAccuracy) => {
       console.log("Game ended:", finalScore, totalAccuracy);
+
+      // Set reason as completed
+      setGameEndReason("completed");
+
+      // Capture final scores and show results when song completes naturally
+      setFinalScore({
+        totalScore: finalScore,
+        accuracy: totalAccuracy,
+        timing: timing,
+        pitch: pitch,
+        scoringEvents: scoringEvents,
+      });
+
+      // Show results screen
+      setShowResults(true);
     },
   });
 
@@ -153,16 +187,77 @@ function GameplayContent() {
     }
   };
 
-  const toggleMute = () => {
+  const handleStopGame = () => {
+    setShowStopModal(true);
+  };
+
+  const confirmStopGame = () => {
+    // Stop the game and calculate final score
     const audioPlayer = getAudioPlayer();
     if (audioPlayer) {
-      if (isMuted) {
-        audioPlayer.unmute();
-      } else {
-        audioPlayer.mute();
+      audioPlayer.pause();
+    }
+
+    // Set reason as quit
+    setGameEndReason("quit");
+
+    // Capture final scores
+    setFinalScore({
+      totalScore: score,
+      accuracy: accuracy,
+      timing: timing,
+      pitch: pitch,
+      scoringEvents: scoringEvents,
+    });
+
+    // Show results screen
+    setShowStopModal(false);
+    setShowResults(true);
+  };
+
+  const cancelStopGame = () => {
+    setShowStopModal(false);
+  };
+
+  const playAgain = async () => {
+    // Show loading state
+    setIsRestarting(true);
+
+    // Hide results screen
+    setShowResults(false);
+
+    // Reset game state
+    resetGame();
+
+    // Reset local state
+    setGameEndReason("completed");
+    setFinalScore({
+      totalScore: 0,
+      accuracy: 0,
+      timing: 0,
+      pitch: 0,
+      scoringEvents: 0,
+    });
+
+    // Add a small delay to ensure microphone reset and reinitialization completes
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    // Reload the song
+    if (currentSong) {
+      try {
+        await loadSong(currentSong);
+      } catch (error) {
+        console.error("Failed to reload song:", error);
       }
     }
-    setIsMuted(!isMuted);
+
+    // Hide loading state
+    setIsRestarting(false);
+  };
+
+  const chooseDifferentSong = () => {
+    // Navigate to songs page
+    window.location.href = "/songs";
   };
 
   const audioPlayer = getAudioPlayer();
@@ -192,21 +287,162 @@ function GameplayContent() {
     );
   }
 
+  // Show results screen if game was stopped
+  if (showResults) {
+    return (
+      <ProtectedRoute>
+        <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
+          {/* Header */}
+          <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center space-x-4">
+              <div className="text-gray-900 dark:text-white">
+                <h1 className="text-lg font-semibold">Final Results</h1>
+                <p className="text-sm text-gray-600 dark:text-white/70">
+                  {currentSong.title} by {currentSong.artist}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <UserProfile />
+              <ThemeToggle />
+            </div>
+          </header>
+
+          <div className="container mx-auto px-4 py-8">
+            <div className="max-w-2xl mx-auto">
+              {/* Results Card */}
+              <div className="bg-white/80 dark:bg-white/10 rounded-xl p-8 backdrop-blur-sm border border-gray-200 dark:border-gray-700 text-center">
+                <div className="mb-8">
+                  <Trophy className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                    {gameEndReason === "completed"
+                      ? finalScore.totalScore >= 80
+                        ? "Song Complete - Excellent Performance!"
+                        : finalScore.totalScore >= 60
+                        ? "Song Complete - Great Job!"
+                        : "Song Complete - Keep Practicing!"
+                      : finalScore.totalScore >= 80
+                      ? "Excellent Performance!"
+                      : finalScore.totalScore >= 60
+                      ? "Great Job!"
+                      : "Keep Practicing!"}
+                  </h2>
+                  <p className="text-gray-600 dark:text-white/70">
+                    {gameEndReason === "completed"
+                      ? "Congratulations! You completed the entire song!"
+                      : "Here's how you did on this song"}
+                  </p>
+                </div>
+
+                {/* Score Breakdown */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                      {finalScore.totalScore}
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-white/70">
+                      Total Score
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+                      {finalScore.accuracy}%
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-white/70">
+                      Accuracy
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
+                      {finalScore.timing}%
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-white/70">
+                      Timing
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">
+                      {finalScore.pitch}%
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-white/70">
+                      Pitch
+                    </div>
+                  </div>
+                </div>
+
+                {/* Performance Feedback */}
+                <div className="mb-8">
+                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                      Performance Summary
+                    </h3>
+                    <p className="text-gray-600 dark:text-white/70">
+                      {finalScore.scoringEvents > 0
+                        ? `You scored points on ${finalScore.scoringEvents} events during your performance.`
+                        : "Keep practicing to improve your karaoke skills!"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <Button
+                    onClick={playAgain}
+                    disabled={isRestarting}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 disabled:opacity-50"
+                  >
+                    <RotateCcw
+                      className={`h-4 w-4 mr-2 ${
+                        isRestarting ? "animate-spin" : ""
+                      }`}
+                    />
+                    {isRestarting ? "Restarting..." : "Play Again"}
+                  </Button>
+                  <Button
+                    onClick={chooseDifferentSong}
+                    variant="outline"
+                    className="border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 px-6 py-3"
+                  >
+                    <Music className="h-4 w-4 mr-2" />
+                    Choose Different Song
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
         {/* Header */}
         <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-4">
-            <Link href="/game-mode">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
+            <div className="flex items-center space-x-2">
+              <Link href="/game-mode">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10"
+                  title="Back to Game Mode"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              </Link>
+              <Link href="/songs">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10"
+                  title="Back to Songs"
+                >
+                  <Music className="h-5 w-5" />
+                </Button>
+              </Link>
+            </div>
             <div className="text-gray-900 dark:text-white">
               <h1 className="text-lg font-semibold">{currentSong.title}</h1>
               <p className="text-sm text-gray-600 dark:text-white/70">
@@ -251,7 +487,7 @@ function GameplayContent() {
 
             {/* Status Display */}
             <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
                 <div>
                   <div className="text-2xl font-bold text-gray-900 dark:text-white">
                     {accuracy}%
@@ -274,26 +510,6 @@ function GameplayContent() {
                   </div>
                   <div className="text-sm text-gray-600 dark:text-white/70">
                     Pitch
-                  </div>
-                </div>
-                <div>
-                  <div className="text-lg font-bold text-gray-900 dark:text-white">
-                    {currentNote || "—"}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-white/70">
-                    {pitchHz > 0 ? `${Math.round(pitchHz)}Hz` : "Note"}
-                  </div>
-                  {/* Debug info */}
-                  <div className="text-xs text-gray-400">
-                    Debug: {pitchHz}Hz, {currentNote}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {isVoiceActive ? "🎤" : "🤫"}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-white/70">
-                    Voice
                   </div>
                 </div>
                 <div>
@@ -380,19 +596,6 @@ function GameplayContent() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10"
-                  onClick={toggleMute}
-                >
-                  {isMuted ? (
-                    <VolumeX className="h-6 w-6" />
-                  ) : (
-                    <Volume2 className="h-6 w-6" />
-                  )}
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="icon"
                   className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10 w-16 h-16"
                   onClick={togglePlay}
                   disabled={!microphoneReady || isInitializing}
@@ -404,6 +607,16 @@ function GameplayContent() {
                   ) : (
                     <Play className="h-8 w-8" />
                   )}
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-12 h-12"
+                  onClick={handleStopGame}
+                  title="Stop Game"
+                >
+                  <Square className="h-6 w-6" />
                 </Button>
 
                 <div className="text-center">
@@ -437,6 +650,30 @@ function GameplayContent() {
               </div>
             </div>
 
+            {/* Navigation */}
+            <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-center space-x-4">
+                <Link href="/songs">
+                  <Button
+                    variant="outline"
+                    className="text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <Music className="h-4 w-4 mr-2" />
+                    Choose Different Song
+                  </Button>
+                </Link>
+                <Link href="/game-mode">
+                  <Button
+                    variant="outline"
+                    className="text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Game Mode
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
             {/* Debug Info */}
             <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
               <div className="text-sm text-yellow-800 dark:text-yellow-200">
@@ -460,16 +697,11 @@ function GameplayContent() {
                 <br />
                 Recording: {isRecording ? "🎤" : "⏹️"}
                 <br />
-                Voice Active: {isVoiceActive ? "🗣️" : "🤫"}
-                <br />
                 Volume: {Math.round(volumeLevel)}%
                 <br />
                 Accuracy: {accuracy}% | Timing: {timing}% | Pitch: {pitch}%
                 <br />
                 Scoring Events: {scoringEvents} (cumulative average)
-                <br />
-                Current Note: {currentNote || "None"} (
-                {pitchHz > 0 ? `${Math.round(pitchHz)}Hz` : "No pitch"})
                 <br />
                 Time: {formatTime(currentTime / 1000)}
                 <br />
@@ -481,6 +713,40 @@ function GameplayContent() {
             </div>
           </div>
         </div>
+
+        {/* Stop Confirmation Modal */}
+        {showStopModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-xl">
+              <div className="text-center">
+                <div className="text-2xl mb-4">🛑</div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Stop Game?
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300 mb-6">
+                  Are you sure you want to stop? We&apos;ll calculate your final
+                  score and end the session.
+                </p>
+                <div className="flex space-x-4 justify-center">
+                  <Button
+                    variant="outline"
+                    onClick={cancelStopGame}
+                    className="text-gray-600 dark:text-gray-300"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={confirmStopGame}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Stop Game
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ProtectedRoute>
   );

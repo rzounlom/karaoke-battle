@@ -92,27 +92,56 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
       dataArray: Float32Array,
       sampleRate: number
     ): { pitch: number; note: string } => {
-      // Find the dominant frequency using autocorrelation
-      const minPeriod = Math.floor(sampleRate / 800); // ~200Hz max
+      // Improved pitch detection using autocorrelation with better filtering
+      const minPeriod = Math.floor(sampleRate / 800); // ~800Hz max
       const maxPeriod = Math.floor(sampleRate / 80); // ~80Hz min
 
       let bestPeriod = 0;
       let bestCorrelation = 0;
 
+      // Apply a simple high-pass filter to remove low-frequency noise
+      const filteredData = new Float32Array(dataArray.length);
+      for (let i = 1; i < dataArray.length; i++) {
+        filteredData[i] = dataArray[i] - 0.95 * dataArray[i - 1];
+      }
+
+      // Autocorrelation with improved algorithm
       for (let period = minPeriod; period < maxPeriod; period++) {
         let correlation = 0;
-        for (let i = 0; i < dataArray.length - period; i++) {
-          correlation += dataArray[i] * dataArray[i + period];
+        let normalization = 0;
+
+        for (let i = 0; i < filteredData.length - period; i++) {
+          correlation += filteredData[i] * filteredData[i + period];
+          normalization += filteredData[i] * filteredData[i];
         }
 
-        if (correlation > bestCorrelation) {
-          bestCorrelation = correlation;
+        // Normalize correlation to avoid bias toward longer periods
+        const normalizedCorrelation =
+          normalization > 0 ? correlation / normalization : 0;
+
+        if (normalizedCorrelation > bestCorrelation) {
+          bestCorrelation = normalizedCorrelation;
           bestPeriod = period;
         }
       }
 
-      const pitch = bestPeriod > 0 ? sampleRate / bestPeriod : 0;
+      // Only return pitch if correlation is strong enough (confidence threshold)
+      const confidenceThreshold = 0.1;
+      const pitch =
+        bestCorrelation > confidenceThreshold && bestPeriod > 0
+          ? sampleRate / bestPeriod
+          : 0;
+
       const note = pitchToNote(pitch);
+
+      // Debug logging (remove in production)
+      if (pitch > 0) {
+        console.log(
+          `🎵 Pitch detected: ${Math.round(
+            pitch
+          )}Hz (${note}), confidence: ${bestCorrelation.toFixed(3)}`
+        );
+      }
 
       return { pitch, note };
     },
@@ -257,14 +286,7 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
     };
 
     analyzeAudio();
-  }, [
-    state.isRecording,
-    state.isPaused,
-    voiceThreshold,
-    onVoiceActivity,
-    onPitchDetected,
-    detectPitch,
-  ]);
+  }, [voiceThreshold, onVoiceActivity, onPitchDetected, detectPitch]);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -562,7 +584,12 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
 
     isRecordingRef.current = false;
     isPausedRef.current = false;
-  }, [stopRecording]);
+
+    // Reinitialize microphone after reset
+    setTimeout(() => {
+      initializeMicrophone();
+    }, 100);
+  }, [stopRecording, initializeMicrophone]);
 
   // Cleanup on unmount
   useEffect(() => {

@@ -94,30 +94,53 @@ export function calculatePitchScore(
   userWords: UserWord[],
   detectedPitchHz: number = 0
 ): number {
+  // Debug logging
+  console.log(`🎯 Calculating pitch score for: ${detectedPitchHz}Hz`);
+
+  // If no pitch detected, return a lower score to encourage singing
   if (detectedPitchHz <= 0) {
-    // Fallback to confidence-based scoring if no pitch detected
-    const baseScore = 70;
-    const confidenceBonus =
-      (userWords.reduce((sum, word) => sum + word.confidence, 0) /
-        userWords.length) *
-      30;
-    return Math.min(100, baseScore + confidenceBonus);
+    console.log(`🎯 No pitch detected, returning low score: 25`);
+    return 25; // Low score when no pitch is detected
   }
 
-  // For now, we'll use a simple pitch stability score
-  // In a full implementation, we'd compare against expected notes from the song
+  // Human voice range validation
   const pitchRange = { min: 80, max: 800 }; // Human voice range in Hz
-
   if (detectedPitchHz < pitchRange.min || detectedPitchHz > pitchRange.max) {
-    return 50; // Out of human voice range
+    return 15; // Very low score for out-of-range pitch
   }
 
-  // Calculate pitch stability score (simplified)
-  // In reality, we'd compare against the song's melody
-  const baseScore = 80;
-  const pitchQuality = Math.min(20, Math.abs(detectedPitchHz - 220) / 10); // Rough quality metric
+  // Calculate pitch quality based on realistic criteria
+  let score = 0;
 
-  return Math.min(100, baseScore + pitchQuality);
+  // Base score for having a detectable pitch in human range
+  score += 30;
+
+  // Bonus for being in a good singing range (100-600 Hz covers most singing)
+  if (detectedPitchHz >= 100 && detectedPitchHz <= 600) {
+    score += 25;
+  }
+
+  // Bonus for being in a very good singing range (150-400 Hz - most comfortable)
+  if (detectedPitchHz >= 150 && detectedPitchHz <= 400) {
+    score += 20;
+  }
+
+  // Quality assessment based on pitch characteristics
+  // Higher scores for pitches that are more likely to be clear singing
+  if (detectedPitchHz >= 200 && detectedPitchHz <= 350) {
+    // This is a very good singing range
+    score += 15;
+  } else if (detectedPitchHz >= 100 && detectedPitchHz <= 500) {
+    // Good singing range
+    score += 10;
+  }
+
+  // Ensure score is within bounds
+  const finalScore = Math.max(0, Math.min(100, score));
+  console.log(
+    `🎯 Pitch score calculated: ${finalScore}% for ${detectedPitchHz}Hz`
+  );
+  return finalScore;
 }
 
 /**
@@ -246,4 +269,28 @@ export function parseTranscriptToWords(
     endTime: startTime + (index + 1) * timePerWord,
     confidence: 0.8, // Default confidence
   }));
+}
+
+/**
+ * Test function to verify pitch scoring accuracy
+ * This can be called from the browser console for testing
+ */
+export function testPitchScoring() {
+  const testCases = [
+    { pitch: 0, expected: "No pitch detected" },
+    { pitch: 50, expected: "Out of range (too low)" },
+    { pitch: 100, expected: "Low singing range" },
+    { pitch: 200, expected: "Good singing range" },
+    { pitch: 300, expected: "Very good singing range" },
+    { pitch: 400, expected: "Good singing range" },
+    { pitch: 500, expected: "Good singing range" },
+    { pitch: 600, expected: "High singing range" },
+    { pitch: 800, expected: "Out of range (too high)" },
+  ];
+
+  console.log("🎯 Testing pitch scoring accuracy:");
+  testCases.forEach(({ pitch, expected }) => {
+    const score = calculatePitchScore([], [], pitch);
+    console.log(`Pitch: ${pitch}Hz - Score: ${score}% - Expected: ${expected}`);
+  });
 }
