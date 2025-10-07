@@ -97,10 +97,17 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
           return;
         }
 
-        // Calculate timing for this transcript segment
-        const currentTime = Date.now() - recordingStartTimeRef.current;
-        const segmentStartTime = Math.max(0, currentTime - 2000); // 2 seconds ago
-        const segmentEndTime = currentTime;
+        // Get current audio time for proper timing
+        const currentAudioTime = audioPlayer.getState().currentTime; // Already in milliseconds
+        const segmentStartTime = Math.max(0, currentAudioTime - 2000); // 2 seconds ago
+        const segmentEndTime = currentAudioTime;
+
+        console.log("🎯 Timing calculation:", {
+          currentAudioTime,
+          segmentStartTime,
+          segmentEndTime,
+          transcript,
+        });
 
         // Parse user words with timing
         const userWords = parseTranscriptToWords(
@@ -111,7 +118,14 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
 
         // Get expected lyrics from LRC for this time segment
         const allExpectedLyrics = audioPlayer.getLyricsForScoring();
+        console.log(
+          "🎯 All expected lyrics:",
+          allExpectedLyrics.length,
+          "lyrics loaded"
+        );
+
         if (allExpectedLyrics.length === 0) {
+          console.log("🎯 No LRC lyrics available, using fallback scoring");
           // Fallback to simple scoring if no LRC
           const wordCount = transcript.trim().split(/\s+/).length;
           const baseScore = Math.min(wordCount * 10, 100);
@@ -136,6 +150,17 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
             lyric.startTime >= segmentStartTime &&
             lyric.startTime <= segmentEndTime
         );
+
+        console.log("🎯 Expected lyrics for segment:", {
+          segmentStartTime,
+          segmentEndTime,
+          expectedLyricsCount: expectedLyrics.length,
+          expectedLyrics: expectedLyrics.map((l) => ({
+            word: l.word,
+            startTime: l.startTime,
+            endTime: l.endTime,
+          })),
+        });
 
         // Calculate proper karaoke score with real pitch data
         const scoringResult = calculateKaraokeScore(

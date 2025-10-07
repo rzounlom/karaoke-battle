@@ -2,12 +2,15 @@
 
 import {
   ArrowLeft,
+  HelpCircle,
   Music,
   Pause,
   Play,
   RotateCcw,
   Square,
   Trophy,
+  X,
+  XCircle,
 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 
@@ -29,6 +32,7 @@ function GameplayContent() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [showStopModal, setShowStopModal] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
   const [gameEndReason, setGameEndReason] = useState<"completed" | "quit">(
     "completed"
@@ -97,6 +101,20 @@ function GameplayContent() {
       clearError();
     }
   }, [clearError]);
+
+  // Handle escape key to close help modal
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && showHelpModal) {
+        setShowHelpModal(false);
+      }
+    };
+
+    if (showHelpModal) {
+      document.addEventListener("keydown", handleEscape);
+      return () => document.removeEventListener("keydown", handleEscape);
+    }
+  }, [showHelpModal]);
 
   // Load song when component mounts
   useEffect(() => {
@@ -714,6 +732,20 @@ function GameplayContent() {
           </div>
         </div>
 
+        {/* Floating Rules Button */}
+        <div className="fixed right-6 top-[200px] z-40">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowHelpModal(true)}
+            className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50 shadow-lg"
+            title="How Scoring Works"
+          >
+            <HelpCircle className="h-4 w-4 mr-2" />
+            Rules
+          </Button>
+        </div>
+
         {/* Stop Confirmation Modal */}
         {showStopModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -743,6 +775,190 @@ function GameplayContent() {
                     Stop Game
                   </Button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Help Modal */}
+        {showHelpModal && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowHelpModal(false)}
+          >
+            <div
+              className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl mx-4 shadow-xl max-h-[90vh] overflow-y-auto relative custom-scrollbar"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setShowHelpModal(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                title="Close"
+              >
+                <XCircle className="h-6 w-6" />
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="text-3xl mb-4">🎯</div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  How Scoring Works
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  Understanding your karaoke performance scores
+                </p>
+              </div>
+
+              <div className="space-y-6 text-left">
+                {/* Real-time vs Final Scores */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                    📊 Real-Time vs Final Scores
+                  </h4>
+                  <p className="text-blue-800 dark:text-blue-200 text-sm">
+                    <strong>Real-time scores</strong> show your performance as
+                    you sing.
+                    <strong>Final scores</strong> are the same as your real-time
+                    scores when you stop - they represent your performance for
+                    the portion of the song you completed.
+                  </p>
+                </div>
+
+                {/* Scoring Components */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                    🎵 Scoring Components
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-green-600 dark:text-green-400 font-semibold text-sm">
+                          A
+                        </span>
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">
+                          Accuracy (50% weight)
+                        </h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          How well you match the lyrics. Compares your words to
+                          the expected lyrics.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-blue-600 dark:text-blue-400 font-semibold text-sm">
+                          T
+                        </span>
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">
+                          Timing (30% weight)
+                        </h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          How well you match the rhythm. Based on when you sing
+                          compared to the song timing.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-purple-600 dark:text-purple-400 font-semibold text-sm">
+                          P
+                        </span>
+                      </div>
+                      <div>
+                        <h5 className="font-medium text-gray-900 dark:text-white">
+                          Pitch (20% weight)
+                        </h5>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          How well you match the musical notes. Based on your
+                          voice pitch detection.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* How Scores Are Calculated */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                    🧮 How Scores Are Calculated
+                  </h4>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                      <strong>Real-time scores</strong> are running averages of
+                      your performance so far:
+                    </p>
+                    <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1 ml-4">
+                      <li>• Each phrase you sing gets scored (0-100%)</li>
+                      <li>
+                        • Your overall score is the average of all phrases
+                      </li>
+                      <li>• Early phrases have more impact on your average</li>
+                      <li>
+                        • Later phrases have less impact (running average
+                        stabilizes)
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Important Notes */}
+                <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg">
+                  <h4 className="font-semibold text-amber-900 dark:text-amber-100 mb-2">
+                    ⚠️ Important Notes
+                  </h4>
+                  <ul className="text-amber-800 dark:text-amber-200 text-sm space-y-1">
+                    <li>
+                      • <strong>No penalty for stopping early</strong> - scores
+                      reflect only what you sang
+                    </li>
+                    <li>
+                      • <strong>Fair scoring</strong> - you&apos;re only judged
+                      on your actual performance
+                    </li>
+                    <li>
+                      • <strong>Realistic feedback</strong> - scores show your
+                      singing ability, not song completion
+                    </li>
+                    <li>
+                      • <strong>Encourages participation</strong> - no
+                      artificial limits or penalties
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Example */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                    📝 Example
+                  </h4>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      <strong>Song:</strong> 5-minute song with 100 phrases
+                      <br />
+                      <strong>You stop:</strong> After 2.5 minutes (50 phrases)
+                      <br />
+                      <strong>Your scores:</strong> 85% Accuracy, 78% Timing,
+                      92% Pitch
+                      <br />
+                      <strong>Result:</strong> These scores reflect your
+                      performance on the 50 phrases you sang, not a percentage
+                      of the total possible score.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-center mt-6">
+                <Button
+                  onClick={() => setShowHelpModal(false)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  Got it!
+                </Button>
               </div>
             </div>
           </div>

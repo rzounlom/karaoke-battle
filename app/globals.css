@@ -57,6 +57,33 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  /* Apply custom scrollbar to the entire app */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: #8b5cf6 transparent;
+  }
+
+  html::-webkit-scrollbar {
+    width: 1px !important;
+    height: 1px !important;
+  }
+
+  html::-webkit-scrollbar-track {
+    background: transparent !important;
+    width: 1px !important;
+  }
+
+  html::-webkit-scrollbar-thumb {
+    background: #8b5cf6 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    min-height: 1px !important;
+  }
+
+  html::-webkit-scrollbar-thumb:hover {
+    background: #7c3aed !important;
+  }
 }
 
 @layer components {
@@ -66,6 +93,33 @@
 
   .karaoke-text-gradient {
     @apply bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent;
+  }
+
+  /* Custom scrollbar styles */
+  .custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #8b5cf6 transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 1px !important;
+    height: 1px !important;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent !important;
+    width: 1px !important;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #8b5cf6 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    min-height: 1px !important;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #7c3aed !important;
   }
 
   .lyrics-text {

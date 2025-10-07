@@ -32,28 +32,64 @@ export function calculateAccuracyScore(
   expectedWords: string[],
   userWords: string[]
 ): number {
-  if (expectedWords.length === 0) return 0;
+  console.log("🎯 calculateAccuracyScore called:", {
+    expectedWords,
+    userWords,
+    expectedLength: expectedWords.length,
+    userLength: userWords.length,
+  });
+
+  if (expectedWords.length === 0) {
+    console.log("🎯 No expected words, returning 0");
+    return 0;
+  }
 
   let correctWords = 0;
   const totalWords = Math.max(expectedWords.length, userWords.length);
 
   // Simple word-by-word comparison
   for (let i = 0; i < Math.min(expectedWords.length, userWords.length); i++) {
-    const expected = expectedWords[i].toLowerCase().trim();
-    const user = userWords[i].toLowerCase().trim();
+    const expected = expectedWords[i]
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s]/g, "");
+    const user = userWords[i]
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s]/g, "");
+
+    console.log(`🎯 Comparing word ${i}:`, {
+      expected,
+      user,
+      match: expected === user,
+    });
 
     if (expected === user) {
       correctWords++;
     } else {
       // Check for partial matches (e.g., "singin'" vs "singing")
       const similarity = calculateWordSimilarity(expected, user);
+      console.log(`🎯 Similarity check:`, {
+        expected,
+        user,
+        similarity,
+        threshold: 0.8,
+        partialMatch: similarity > 0.8,
+      });
       if (similarity > 0.8) {
         correctWords += similarity;
       }
     }
   }
 
-  return (correctWords / totalWords) * 100;
+  const accuracy = (correctWords / totalWords) * 100;
+  console.log("🎯 Accuracy calculation result:", {
+    correctWords,
+    totalWords,
+    accuracy,
+  });
+
+  return accuracy;
 }
 
 /**
@@ -180,6 +216,21 @@ export function calculateKaraokeScore(
   userWords: UserWord[],
   detectedPitchHz: number = 0
 ): ScoringResult {
+  console.log("🎯 calculateKaraokeScore called:", {
+    expectedLyrics: expectedLyrics.map((l) => ({
+      word: l.word,
+      startTime: l.startTime,
+      endTime: l.endTime,
+    })),
+    userTranscript,
+    userWords: userWords.map((w) => ({
+      word: w.word,
+      startTime: w.startTime,
+      endTime: w.endTime,
+    })),
+    detectedPitchHz,
+  });
+
   // Extract expected words
   const expectedWords = expectedLyrics.map((lyric) => lyric.word);
 
@@ -187,6 +238,13 @@ export function calculateKaraokeScore(
   const userWordList = userTranscript
     .split(/\s+/)
     .filter((word) => word.length > 0);
+
+  console.log("🎯 Extracted words:", {
+    expectedWords,
+    userWordList,
+    expectedLyricsCount: expectedLyrics.length,
+    userWordsCount: userWords.length,
+  });
 
   // Calculate individual scores
   const accuracy = calculateAccuracyScore(expectedWords, userWordList);
@@ -199,7 +257,7 @@ export function calculateKaraokeScore(
   // Generate feedback
   const feedback = generateFeedback(accuracy, timing, pitch);
 
-  return {
+  const result = {
     totalScore: Math.round(totalScore),
     accuracy: Math.round(accuracy),
     timing: Math.round(timing),
@@ -211,6 +269,9 @@ export function calculateKaraokeScore(
     },
     feedback,
   };
+
+  console.log("🎯 Final scoring result:", result);
+  return result;
 }
 
 /**
