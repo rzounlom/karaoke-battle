@@ -1,19 +1,8 @@
 "use client";
 
+import { ArrowLeft, Clock, Mic, Play, Search } from "lucide-react";
 import {
-  ArrowLeft,
-  Clock,
-  Filter,
-  Mic,
-  Play,
-  Search,
-  Star,
-  Users,
-} from "lucide-react";
-import {
-  Song,
   SongWithDuration,
-  filterSongs,
   getAllSongs,
   getAvailableDifficulties,
   getAvailableGenres,

@@ -343,7 +343,7 @@ export default function ResultsPage() {
                   Battle Results
                 </h3>
                 <div className="space-y-3">
-                  {multiplayerResults.map((player, index) => (
+                  {multiplayerResults.map((player) => (
                     <div
                       key={player.name}
                       className={`flex items-center justify-between p-3 rounded-lg transition-all ${

@@ -29,7 +29,7 @@ export function calculateExperienceFromScore(
   songDifficulty: "EASY" | "MEDIUM" | "HARD" = "MEDIUM"
 ): number {
   // Base experience from total score (0-100 scale)
-  let baseExperience = Math.floor(totalScore * 0.5); // 0-50 base XP
+  const baseExperience = Math.floor(totalScore * 0.5); // 0-50 base XP
 
   // Performance bonuses
   const accuracyBonus = Math.floor(accuracy * 0.3); // 0-30 bonus

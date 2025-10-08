@@ -1,9 +1,9 @@
 "use client";
 
-import { AlertCircle, CheckCircle, Mic, MicOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertCircle, CheckCircle, Mic } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 export function MicrophoneTest() {
   const [isTesting, setIsTesting] = useState(false);

@@ -3,7 +3,7 @@
  * Only logs when running locally (localhost or http)
  */
 
-export function debugLog(...args: any[]) {
+export function debugLog(...args: unknown[]) {
   if (
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" ||
@@ -14,7 +14,7 @@ export function debugLog(...args: any[]) {
   }
 }
 
-export function debugWarn(...args: any[]) {
+export function debugWarn(...args: unknown[]) {
   if (
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" ||
@@ -25,7 +25,7 @@ export function debugWarn(...args: any[]) {
   }
 }
 
-export function debugError(...args: any[]) {
+export function debugError(...args: unknown[]) {
   if (
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" ||

@@ -71,13 +71,6 @@ export async function POST(req: NextRequest) {
     );
 
     // Update user in database
-    const updatedUser = await prisma.user.update({
-      where: { clerkId: user.id },
-      data: {
-        level: experienceResult.newLevel,
-        experience: experienceResult.newExperience,
-      },
-    });
 
     // Save the score to database
     if (songId) {
@@ -124,7 +117,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const user = await currentUser();
 

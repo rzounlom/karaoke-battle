@@ -120,7 +120,9 @@ function SimpleGameplayContent() {
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center">
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-4">Song Not Found</h1>
-            <p className="mb-4">The song with ID "{songId}" was not found.</p>
+            <p className="mb-4">
+              The song with ID &ldquo;{songId}&rdquo; was not found.
+            </p>
             <Link
               href="/songs"
               className="text-blue-400 hover:text-blue-300 underline"
@@ -291,7 +293,7 @@ function SimpleGameplayContent() {
                         Your voice:
                       </div>
                       <div className="text-lg text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                        "{transcript}"
+                        &ldquo;{transcript}&rdquo;
                       </div>
                     </div>
                   )}

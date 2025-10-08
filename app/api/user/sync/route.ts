@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, syncUser } from "@/lib/auth";
 
-export async function POST(req: NextRequest) {
+import { NextResponse } from "next/server";
+
+export async function POST() {
   try {
     const result = await syncUser();
 
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const user = await getCurrentUser();
 

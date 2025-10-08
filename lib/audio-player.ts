@@ -58,6 +58,7 @@ export class AudioPlayer {
     });
 
     this.audio.addEventListener("error", (e) => {
+      console.log("Audio error:", e);
       // Error handling - only log when debug buttons are clicked
     });
 
@@ -128,6 +129,7 @@ export class AudioPlayer {
         this.onLyricsLoaded(this.parsedLrc);
       }
     } catch (error) {
+      console.log("Failed to load LRC file:", error);
       this.parsedLrc = null;
       // Don't throw here - lyrics are optional, audio is required
     }
@@ -174,6 +176,7 @@ export class AudioPlayer {
       };
 
       const onError = (e: Event) => {
+        console.log("Audio error:", e);
         const errorMsg = `Failed to load audio from ${finalUrl}. Check if file exists and is accessible.`;
         cleanup();
         reject(new Error(errorMsg));
@@ -448,6 +451,7 @@ export class AudioPlayer {
         };
 
         const onError = (e: Event) => {
+          console.log("Audio error:", e);
           reject(new Error("Failed to load metadata"));
         };
 
