@@ -2,11 +2,48 @@
 
 import { LogIn, User } from "lucide-react";
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
+import { getLevelColor, getLevelTitle } from "@/lib/experience";
+import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
+interface UserLevelInfo {
+  level: number;
+  experience: number;
+  levelInfo: {
+    level: number;
+    experience: number;
+    experienceToNext: number;
+    totalExperienceForLevel: number;
+  };
+}
+
 export function UserProfile() {
   const { isSignedIn, user } = useUser();
+  const [levelInfo, setLevelInfo] = useState<UserLevelInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (isSignedIn) {
+      fetchUserLevel();
+    }
+  }, [isSignedIn]);
+
+  const fetchUserLevel = async () => {
+    try {
+      const response = await fetch("/api/user/experience");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setLevelInfo(data);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user level:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!isSignedIn) {
     return (
@@ -26,13 +63,24 @@ export function UserProfile() {
           {user?.firstName || user?.username || "User"}
         </div>
         <div className="text-xs text-gray-500 dark:text-gray-400">
-          Level{" "}
-          {Math.floor(
-            (user?.createdAt
-              ? Date.now() - new Date(user.createdAt).getTime()
-              : 0) /
-              (1000 * 60 * 60 * 24)
-          ) + 1}
+          {loading ? (
+            "Loading..."
+          ) : levelInfo ? (
+            <>
+              <span
+                className={`font-semibold ${getLevelColor(levelInfo.level)}`}
+              >
+                Level {levelInfo.level}
+              </span>
+              <br />
+              <span className="text-xs">
+                {levelInfo.experience} XP •{" "}
+                {levelInfo.levelInfo.experienceToNext} to next
+              </span>
+            </>
+          ) : (
+            "Level 1"
+          )}
         </div>
       </div>
       <UserButton

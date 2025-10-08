@@ -74,7 +74,7 @@ function GameplayContent() {
     onScoreUpdate: (newScore, newAccuracy) => {
       console.log("Score update:", newScore, newAccuracy);
     },
-    onGameEnd: (finalScore, totalAccuracy) => {
+    onGameEnd: async (finalScore, totalAccuracy) => {
       console.log("Game ended:", finalScore, totalAccuracy);
 
       // Set reason as completed
@@ -88,6 +88,36 @@ function GameplayContent() {
         pitch: pitch,
         scoringEvents: scoringEvents,
       });
+
+      // Update user experience
+      try {
+        const response = await fetch("/api/user/experience", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            totalScore: finalScore,
+            accuracy: totalAccuracy,
+            timing: timing,
+            pitch: pitch,
+            songDifficulty: currentSong?.difficulty || "MEDIUM",
+            songId: currentSong?.id,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            console.log("Experience updated:", data);
+            if (data.leveledUp) {
+              console.log("🎉 Level up! New level:", data.newLevel);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error updating experience:", error);
+      }
 
       // Show results screen
       setShowResults(true);
@@ -209,7 +239,7 @@ function GameplayContent() {
     setShowStopModal(true);
   };
 
-  const confirmStopGame = () => {
+  const confirmStopGame = async () => {
     // Stop the game and calculate final score
     const audioPlayer = getAudioPlayer();
     if (audioPlayer) {
@@ -227,6 +257,36 @@ function GameplayContent() {
       pitch: pitch,
       scoringEvents: scoringEvents,
     });
+
+    // Update user experience
+    try {
+      const response = await fetch("/api/user/experience", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          totalScore: score,
+          accuracy: accuracy,
+          timing: timing,
+          pitch: pitch,
+          songDifficulty: currentSong?.difficulty || "MEDIUM",
+          songId: currentSong?.id,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          console.log("Experience updated:", data);
+          if (data.leveledUp) {
+            console.log("🎉 Level up! New level:", data.newLevel);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error updating experience:", error);
+    }
 
     // Show results screen
     setShowStopModal(false);
