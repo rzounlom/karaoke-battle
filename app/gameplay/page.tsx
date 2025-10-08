@@ -9,7 +9,6 @@ import {
   RotateCcw,
   Square,
   Trophy,
-  X,
   XCircle,
 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
@@ -19,6 +18,7 @@ import Link from "next/link";
 import { ProtectedRoute } from "@/components/protected-route";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
+import { debugLog } from "@/lib/debug";
 import { formatTime } from "@/lib/utils";
 import { getSongById } from "@/lib/songs-data";
 import { useSearchParams } from "next/navigation";
@@ -34,6 +34,13 @@ function GameplayContent() {
   const [showResults, setShowResults] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
+
+  // Check if we're running locally for debug info
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.protocol === "http:");
   const [gameEndReason, setGameEndReason] = useState<"completed" | "quit">(
     "completed"
   );
@@ -72,10 +79,10 @@ function GameplayContent() {
     clearError,
   } = useSimpleKaraoke({
     onScoreUpdate: (newScore, newAccuracy) => {
-      console.log("Score update:", newScore, newAccuracy);
+      debugLog("Score update:", newScore, newAccuracy);
     },
     onGameEnd: async (finalScore, totalAccuracy) => {
-      console.log("Game ended:", finalScore, totalAccuracy);
+      debugLog("Game ended:", finalScore, totalAccuracy);
 
       // Set reason as completed
       setGameEndReason("completed");
@@ -109,9 +116,9 @@ function GameplayContent() {
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
-            console.log("Experience updated:", data);
+            debugLog("Experience updated:", data);
             if (data.leveledUp) {
-              console.log("🎉 Level up! New level:", data.newLevel);
+              debugLog("🎉 Level up! New level:", data.newLevel);
             }
           }
         }
@@ -127,7 +134,7 @@ function GameplayContent() {
   // Clear any error state when component mounts
   useEffect(() => {
     if (typeof window !== "undefined") {
-      console.log("🎵 Component mounted, clearing error state");
+      debugLog("🎵 Component mounted, clearing error state");
       clearError();
     }
   }, [clearError]);
@@ -150,11 +157,11 @@ function GameplayContent() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    console.log("🎵 useEffect triggered, currentSong:", currentSong);
-    console.log("🎵 songId from URL:", songId);
+    debugLog("🎵 useEffect triggered, currentSong:", currentSong);
+    debugLog("🎵 songId from URL:", songId);
 
     if (currentSong) {
-      console.log("🎵 Loading song:", currentSong);
+      debugLog("🎵 Loading song:", currentSong);
       setTimeout(async () => {
         try {
           // Additional validation before loading
@@ -164,19 +171,19 @@ function GameplayContent() {
           }
           const success = await loadSong(currentSong);
           if (success) {
-            console.log("✅ Song loaded successfully");
+            debugLog("✅ Song loaded successfully");
             // Check if audio is ready after loading
             const audioPlayer = getAudioPlayer();
             if (audioPlayer) {
               const audioState = audioPlayer.getAudioState();
-              console.log("Audio state after loading:", audioState);
+              debugLog("Audio state after loading:", audioState);
 
               // If not ready, wait a bit more and check again
               if (!audioPlayer.isReadyToPlay()) {
-                console.log("Audio not ready immediately, waiting...");
+                debugLog("Audio not ready immediately, waiting...");
                 setTimeout(() => {
                   const retryState = audioPlayer.getAudioState();
-                  console.log("Audio state after retry:", retryState);
+                  debugLog("Audio state after retry:", retryState);
                 }, 1000);
               }
             }
@@ -762,43 +769,45 @@ function GameplayContent() {
               </div>
             </div>
 
-            {/* Debug Info */}
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
-              <div className="text-sm text-yellow-800 dark:text-yellow-200">
-                <strong>Debug Info:</strong>
-                <br />
-                Song: {currentSong.title} ✅
-                <br />
-                Audio Player: {audioPlayer ? "✅" : "❌"}
-                <br />
-                Audio Ready: {audioPlayer?.isReadyToPlay() ? "✅" : "❌"}
-                <br />
-                Lyrics Loaded: {lyricsLoaded ? "✅" : "❌"}
-                <br />
-                Current Lyric: {currentLyric ? `"${currentLyric}"` : "None"}
-                <br />
-                Microphone: {microphoneReady ? "✅" : "❌"}
-                <br />
-                Playing: {isPlaying ? "✅" : "❌"}
-                <br />
-                Paused: {isPaused ? "⏸️" : "❌"}
-                <br />
-                Recording: {isRecording ? "🎤" : "⏹️"}
-                <br />
-                Volume: {Math.round(volumeLevel)}%
-                <br />
-                Accuracy: {accuracy}% | Timing: {timing}% | Pitch: {pitch}%
-                <br />
-                Scoring Events: {scoringEvents} (cumulative average)
-                <br />
-                Time: {formatTime(currentTime / 1000)}
-                <br />
-                Duration:{" "}
-                {audioPlayer
-                  ? formatTime(audioPlayer.getState().duration)
-                  : "N/A"}
+            {/* Debug Info - Only show on localhost */}
+            {isLocalhost && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
+                <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                  <strong>Debug Info:</strong>
+                  <br />
+                  Song: {currentSong.title} ✅
+                  <br />
+                  Audio Player: {audioPlayer ? "✅" : "❌"}
+                  <br />
+                  Audio Ready: {audioPlayer?.isReadyToPlay() ? "✅" : "❌"}
+                  <br />
+                  Lyrics Loaded: {lyricsLoaded ? "✅" : "❌"}
+                  <br />
+                  Current Lyric: {currentLyric ? `"${currentLyric}"` : "None"}
+                  <br />
+                  Microphone: {microphoneReady ? "✅" : "❌"}
+                  <br />
+                  Playing: {isPlaying ? "✅" : "❌"}
+                  <br />
+                  Paused: {isPaused ? "⏸️" : "❌"}
+                  <br />
+                  Recording: {isRecording ? "🎤" : "⏹️"}
+                  <br />
+                  Volume: {Math.round(volumeLevel)}%
+                  <br />
+                  Accuracy: {accuracy}% | Timing: {timing}% | Pitch: {pitch}%
+                  <br />
+                  Scoring Events: {scoringEvents} (cumulative average)
+                  <br />
+                  Time: {formatTime(currentTime / 1000)}
+                  <br />
+                  Duration:{" "}
+                  {audioPlayer
+                    ? formatTime(audioPlayer.getState().duration)
+                    : "N/A"}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
