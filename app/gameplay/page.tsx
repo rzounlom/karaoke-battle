@@ -36,6 +36,50 @@ function GameplayContent() {
   const [showScoringModal, setShowScoringModal] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
 
+  // Mock leaderboard data
+  const mockLeaderboard = [
+    { rank: 1, player: "KaraokeKing", score: 98, level: 45, title: "Expert" },
+    {
+      rank: 2,
+      player: "SongMaster",
+      score: 96,
+      level: 38,
+      title: "Professional",
+    },
+    { rank: 3, player: "VoiceLegend", score: 94, level: 52, title: "Expert" },
+    {
+      rank: 4,
+      player: "MelodyPro",
+      score: 92,
+      level: 29,
+      title: "Professional",
+    },
+    { rank: 5, player: "HarmonyHero", score: 90, level: 41, title: "Expert" },
+    {
+      rank: 6,
+      player: "TuneTitan",
+      score: 88,
+      level: 33,
+      title: "Professional",
+    },
+    { rank: 7, player: "RhythmRuler", score: 86, level: 27, title: "Amateur" },
+    {
+      rank: 8,
+      player: "PitchPerfect",
+      score: 84,
+      level: 35,
+      title: "Professional",
+    },
+    {
+      rank: 9,
+      player: "VocalVirtuoso",
+      score: 82,
+      level: 31,
+      title: "Professional",
+    },
+    { rank: 10, player: "MusicMaven", score: 80, level: 24, title: "Amateur" },
+  ];
+
   // Check if we're running locally for debug info
   const isLocalhost =
     typeof window !== "undefined" &&
@@ -573,255 +617,330 @@ function GameplayContent() {
         </header>
 
         <div className="container mx-auto px-4 py-6">
-          <div className="max-w-4xl mx-auto space-y-6">
-            {/* Progress Bar */}
-            <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-900 dark:text-white font-medium">
-                  {formatTime(currentTime / 1000)}
-                </span>
-                <span className="text-gray-600 dark:text-white/70">
-                  {audioPlayer
-                    ? formatTime(audioPlayer.getState().duration)
-                    : "0:00"}
-                </span>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+            {/* Main Gameplay Area */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Progress Bar */}
+              <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-900 dark:text-white font-medium">
+                    {formatTime(currentTime / 1000)}
+                  </span>
+                  <span className="text-gray-600 dark:text-white/70">
+                    {audioPlayer
+                      ? formatTime(audioPlayer.getState().duration)
+                      : "0:00"}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-white/20 rounded-full h-2">
+                  <div
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
               </div>
-              <div className="w-full bg-gray-200 dark:bg-white/20 rounded-full h-2">
-                <div
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                ></div>
-              </div>
-            </div>
 
-            {/* Status Display */}
-            <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {accuracy}%
+              {/* Status Display */}
+              <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {accuracy}%
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-white/70">
+                      Accuracy
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-white/70">
-                    Accuracy
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {timing}%
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-white/70">
+                      Timing
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {timing}%
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {pitch}%
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-white/70">
+                      Pitch
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-600 dark:text-white/70">
-                    Timing
-                  </div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {pitch}%
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-white/70">
-                    Pitch
-                  </div>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {isRecording ? "🔴" : "⏹️"}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-white/70">
-                    Recording
+                  <div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {isRecording ? "🔴" : "⏹️"}
+                    </div>
+                    <div className="text-sm text-gray-600 dark:text-white/70">
+                      Recording
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Lyrics Display */}
-            <div className="bg-white/80 dark:bg-white/10 rounded-xl p-8 text-center min-h-[400px] flex flex-col justify-center backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-              {(() => {
-                console.log(
-                  "🎵 Rendering lyrics display - isInitializing:",
-                  isInitializing,
-                  "error:",
-                  error
-                );
-                return null;
-              })()}
-              {isInitializing ? (
-                <div className="text-gray-900 dark:text-white text-xl">
-                  Initializing...
-                </div>
-              ) : error ? (
-                <div className="text-red-600 dark:text-red-400">
-                  <div className="text-xl font-bold mb-2">Error</div>
-                  <div className="text-sm">{error}</div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {/* Song Lyrics */}
-                  <div className="space-y-4">
-                    <div className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
-                      {currentLyric ||
-                        (lyricsLoaded
-                          ? "Get ready to sing!"
-                          : "Loading lyrics...")}
+              {/* Lyrics Display */}
+              <div className="bg-white/80 dark:bg-white/10 rounded-xl p-8 text-center min-h-[400px] flex flex-col justify-center backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                {(() => {
+                  console.log(
+                    "🎵 Rendering lyrics display - isInitializing:",
+                    isInitializing,
+                    "error:",
+                    error
+                  );
+                  return null;
+                })()}
+                {isInitializing ? (
+                  <div className="text-gray-900 dark:text-white text-xl">
+                    Initializing...
+                  </div>
+                ) : error ? (
+                  <div className="text-red-600 dark:text-red-400">
+                    <div className="text-xl font-bold mb-2">Error</div>
+                    <div className="text-sm">{error}</div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Song Lyrics */}
+                    <div className="space-y-4">
+                      <div className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
+                        {currentLyric ||
+                          (lyricsLoaded
+                            ? "Get ready to sing!"
+                            : "Loading lyrics...")}
+                      </div>
+
+                      {/* Upcoming Lyrics */}
+                      {upcomingLyrics.length > 0 && (
+                        <div className="text-xl md:text-2xl text-gray-600 dark:text-white/60">
+                          {upcomingLyrics[0]}
+                        </div>
+                      )}
+
+                      {upcomingLyrics.length > 1 && (
+                        <div className="text-lg text-gray-500 dark:text-white/40">
+                          {upcomingLyrics[1]}
+                        </div>
+                      )}
                     </div>
 
-                    {/* Upcoming Lyrics */}
-                    {upcomingLyrics.length > 0 && (
-                      <div className="text-xl md:text-2xl text-gray-600 dark:text-white/60">
-                        {upcomingLyrics[0]}
+                    {/* Voice Transcription */}
+                    {transcript && (
+                      <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
+                        <div className="text-sm text-gray-600 dark:text-white/70 mb-2">
+                          Your voice:
+                        </div>
+                        <div className="text-lg text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+                          &ldquo;{transcript}&rdquo;
+                        </div>
                       </div>
                     )}
 
-                    {upcomingLyrics.length > 1 && (
-                      <div className="text-lg text-gray-500 dark:text-white/40">
-                        {upcomingLyrics[1]}
+                    {/* Voice Activity Indicator */}
+                    {isVoiceActive && (
+                      <div className="text-green-600 dark:text-green-400 text-lg font-medium">
+                        🎤 Voice detected! Keep singing!
                       </div>
                     )}
                   </div>
+                )}
+              </div>
 
-                  {/* Voice Transcription */}
-                  {transcript && (
-                    <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
-                      <div className="text-sm text-gray-600 dark:text-white/70 mb-2">
-                        Your voice:
-                      </div>
-                      <div className="text-lg text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                        &ldquo;{transcript}&rdquo;
-                      </div>
-                    </div>
-                  )}
+              {/* Controls */}
+              <div className="bg-white/80 dark:bg-white/10 rounded-lg p-6 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-center space-x-6">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10 w-16 h-16"
+                    onClick={togglePlay}
+                    disabled={!microphoneReady || isInitializing}
+                  >
+                    {isPlaying ? (
+                      <Pause className="h-8 w-8" />
+                    ) : isPaused ? (
+                      <Play className="h-8 w-8" />
+                    ) : (
+                      <Play className="h-8 w-8" />
+                    )}
+                  </Button>
 
-                  {/* Voice Activity Indicator */}
-                  {isVoiceActive && (
-                    <div className="text-green-600 dark:text-green-400 text-lg font-medium">
-                      🎤 Voice detected! Keep singing!
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-12 h-12"
+                    onClick={handleStopGame}
+                    title="Stop Game"
+                  >
+                    <Square className="h-6 w-6" />
+                  </Button>
+
+                  <div className="text-center">
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      {isPlaying
+                        ? "Click to pause"
+                        : isPaused
+                        ? "Click to resume"
+                        : "Click to start singing"}
                     </div>
-                  )}
+                    {!microphoneReady && (
+                      <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                        ⏳ Microphone initializing...
+                      </div>
+                    )}
+                    {microphoneReady && !isInitializing && (
+                      <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                        {(() => {
+                          const audioPlayer = getAudioPlayer();
+                          if (audioPlayer && audioPlayer.isReadyToPlay()) {
+                            return "🎵 Ready to play";
+                          } else if (audioPlayer) {
+                            return "⏳ Audio loading...";
+                          } else {
+                            return "🎵 Ready to play";
+                          }
+                        })()}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation */}
+              <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-center space-x-4">
+                  <Link href="/songs">
+                    <Button
+                      variant="outline"
+                      className="text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <Music className="h-4 w-4 mr-2" />
+                      Choose Different Song
+                    </Button>
+                  </Link>
+                  <Link href="/game-mode">
+                    <Button
+                      variant="outline"
+                      className="text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-2" />
+                      Back to Game Mode
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+
+              {/* Debug Info - Only show on localhost */}
+              {isLocalhost && (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
+                  <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                    <strong>Debug Info:</strong>
+                    <br />
+                    Song: {currentSong.title} ✅
+                    <br />
+                    Audio Player: {audioPlayer ? "✅" : "❌"}
+                    <br />
+                    Audio Ready: {audioPlayer?.isReadyToPlay() ? "✅" : "❌"}
+                    <br />
+                    Lyrics Loaded: {lyricsLoaded ? "✅" : "❌"}
+                    <br />
+                    Current Lyric: {currentLyric ? `"${currentLyric}"` : "None"}
+                    <br />
+                    Microphone: {microphoneReady ? "✅" : "❌"}
+                    <br />
+                    Playing: {isPlaying ? "✅" : "❌"}
+                    <br />
+                    Paused: {isPaused ? "⏸️" : "❌"}
+                    <br />
+                    Recording: {isRecording ? "🎤" : "⏹️"}
+                    <br />
+                    Volume: {Math.round(volumeLevel)}%
+                    <br />
+                    Accuracy: {accuracy}% | Timing: {timing}% | Pitch: {pitch}%
+                    <br />
+                    Scoring Events: {scoringEvents} (cumulative average)
+                    <br />
+                    Time: {formatTime(currentTime / 1000)}
+                    <br />
+                    Duration:{" "}
+                    {audioPlayer
+                      ? formatTime(audioPlayer.getState().duration)
+                      : "N/A"}
+                  </div>
                 </div>
               )}
             </div>
 
-            {/* Controls */}
-            <div className="bg-white/80 dark:bg-white/10 rounded-lg p-6 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-center space-x-6">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10 w-16 h-16"
-                  onClick={togglePlay}
-                  disabled={!microphoneReady || isInitializing}
-                >
-                  {isPlaying ? (
-                    <Pause className="h-8 w-8" />
-                  ) : isPaused ? (
-                    <Play className="h-8 w-8" />
-                  ) : (
-                    <Play className="h-8 w-8" />
-                  )}
-                </Button>
+            {/* Leaderboard Section */}
+            <div className="lg:col-span-1">
+              <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700 sticky top-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    🏆 Leaderboard
+                  </h3>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                    {currentSong.title}
+                  </span>
+                </div>
 
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-12 h-12"
-                  onClick={handleStopGame}
-                  title="Stop Game"
-                >
-                  <Square className="h-6 w-6" />
-                </Button>
+                <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
+                  {mockLeaderboard.map((entry) => (
+                    <div
+                      key={entry.rank}
+                      className={`flex items-center justify-between p-2 rounded-lg ${
+                        entry.rank <= 3
+                          ? "bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border border-yellow-200 dark:border-yellow-700"
+                          : "bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                            entry.rank === 1
+                              ? "bg-yellow-500 text-white"
+                              : entry.rank === 2
+                              ? "bg-gray-400 text-white"
+                              : entry.rank === 3
+                              ? "bg-amber-600 text-white"
+                              : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
+                          }`}
+                        >
+                          {entry.rank}
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white text-sm">
+                            {entry.player}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Level {entry.level} - {entry.title}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-gray-900 dark:text-white">
+                          {entry.score}%
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          Score
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
-                <div className="text-center">
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    {isPlaying
-                      ? "Click to pause"
-                      : isPaused
-                      ? "Click to resume"
-                      : "Click to start singing"}
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <div className="text-center">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Your best score will appear here
+                    </p>
+                    <div className="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-3">
+                      <div className="text-sm text-gray-600 dark:text-gray-300">
+                        Play to see your ranking!
+                      </div>
+                    </div>
                   </div>
-                  {!microphoneReady && (
-                    <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
-                      ⏳ Microphone initializing...
-                    </div>
-                  )}
-                  {microphoneReady && !isInitializing && (
-                    <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                      {(() => {
-                        const audioPlayer = getAudioPlayer();
-                        if (audioPlayer && audioPlayer.isReadyToPlay()) {
-                          return "🎵 Ready to play";
-                        } else if (audioPlayer) {
-                          return "⏳ Audio loading...";
-                        } else {
-                          return "🎵 Ready to play";
-                        }
-                      })()}
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
-
-            {/* Navigation */}
-            <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-center space-x-4">
-                <Link href="/songs">
-                  <Button
-                    variant="outline"
-                    className="text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    <Music className="h-4 w-4 mr-2" />
-                    Choose Different Song
-                  </Button>
-                </Link>
-                <Link href="/game-mode">
-                  <Button
-                    variant="outline"
-                    className="text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Game Mode
-                  </Button>
-                </Link>
-              </div>
-            </div>
-
-            {/* Debug Info - Only show on localhost */}
-            {isLocalhost && (
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
-                <div className="text-sm text-yellow-800 dark:text-yellow-200">
-                  <strong>Debug Info:</strong>
-                  <br />
-                  Song: {currentSong.title} ✅
-                  <br />
-                  Audio Player: {audioPlayer ? "✅" : "❌"}
-                  <br />
-                  Audio Ready: {audioPlayer?.isReadyToPlay() ? "✅" : "❌"}
-                  <br />
-                  Lyrics Loaded: {lyricsLoaded ? "✅" : "❌"}
-                  <br />
-                  Current Lyric: {currentLyric ? `"${currentLyric}"` : "None"}
-                  <br />
-                  Microphone: {microphoneReady ? "✅" : "❌"}
-                  <br />
-                  Playing: {isPlaying ? "✅" : "❌"}
-                  <br />
-                  Paused: {isPaused ? "⏸️" : "❌"}
-                  <br />
-                  Recording: {isRecording ? "🎤" : "⏹️"}
-                  <br />
-                  Volume: {Math.round(volumeLevel)}%
-                  <br />
-                  Accuracy: {accuracy}% | Timing: {timing}% | Pitch: {pitch}%
-                  <br />
-                  Scoring Events: {scoringEvents} (cumulative average)
-                  <br />
-                  Time: {formatTime(currentTime / 1000)}
-                  <br />
-                  Duration:{" "}
-                  {audioPlayer
-                    ? formatTime(audioPlayer.getState().duration)
-                    : "N/A"}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
