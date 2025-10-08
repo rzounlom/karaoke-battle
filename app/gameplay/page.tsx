@@ -33,6 +33,7 @@ function GameplayContent() {
   const [showStopModal, setShowStopModal] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showScoringModal, setShowScoringModal] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
 
   // Check if we're running locally for debug info
@@ -139,19 +140,22 @@ function GameplayContent() {
     }
   }, [clearError]);
 
-  // Handle escape key to close help modal
+  // Handle escape key to close modals
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape" && showHelpModal) {
         setShowHelpModal(false);
       }
+      if (event.key === "Escape" && showScoringModal) {
+        setShowScoringModal(false);
+      }
     };
 
-    if (showHelpModal) {
+    if (showHelpModal || showScoringModal) {
       document.addEventListener("keydown", handleEscape);
       return () => document.removeEventListener("keydown", handleEscape);
     }
-  }, [showHelpModal]);
+  }, [showHelpModal, showScoringModal]);
 
   // Load song when component mounts
   useEffect(() => {
@@ -546,6 +550,16 @@ function GameplayContent() {
             >
               <HelpCircle className="h-4 w-4 mr-2" />
               Rules
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowScoringModal(true)}
+              className="text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              title="Scoring & Levels"
+            >
+              <Trophy className="h-4 w-4 mr-2" />
+              Scoring
             </Button>
             <div className="text-center text-gray-900 dark:text-white">
               <div className="text-2xl font-bold">{score}</div>
@@ -1020,6 +1034,226 @@ function GameplayContent() {
               <div className="flex justify-center mt-6">
                 <Button
                   onClick={() => setShowHelpModal(false)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  Got it!
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Scoring Modal */}
+        {showScoringModal && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowScoringModal(false)}
+          >
+            <div
+              className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl mx-4 shadow-xl max-h-[90vh] overflow-y-auto relative custom-scrollbar"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close button */}
+              <button
+                onClick={() => setShowScoringModal(false)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition-colors p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                title="Close"
+              >
+                <XCircle className="h-6 w-6" />
+              </button>
+
+              <div className="text-center mb-6">
+                <div className="text-3xl mb-4">🏆</div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Scoring & Leveling System
+                </h3>
+                <p className="text-gray-600 dark:text-gray-300">
+                  How experience points, levels, and scoring work
+                </p>
+              </div>
+
+              <div className="space-y-6 text-left">
+                {/* Experience Points */}
+                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                  <h4 className="font-semibold text-green-900 dark:text-green-100 mb-2">
+                    ⭐ Experience Points (XP)
+                  </h4>
+                  <p className="text-sm text-green-800 dark:text-green-200 mb-3">
+                    Earn XP by playing songs! Your performance determines how
+                    much XP you gain.
+                  </p>
+                  <div className="space-y-2 text-sm text-green-800 dark:text-green-200">
+                    <p>
+                      <strong>Base XP:</strong> 0-50 points from your total
+                      score
+                    </p>
+                    <p>
+                      <strong>Performance Bonuses:</strong> +0-30 for accuracy,
+                      +0-20 for timing, +0-20 for pitch
+                    </p>
+                    <p>
+                      <strong>Perfect Bonus:</strong> +25 XP if all scores &gt;
+                      90%
+                    </p>
+                    <p>
+                      <strong>Difficulty Multiplier:</strong> Easy (0.8x),
+                      Medium (1.0x), Hard (1.3x)
+                    </p>
+                  </div>
+                </div>
+
+                {/* Level Requirements */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                    📈 Level Requirements
+                  </h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                      <div className="font-semibold text-gray-900 dark:text-white">
+                        Level 1-5
+                      </div>
+                      <div className="text-gray-600 dark:text-gray-300">
+                        100-700 XP
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                      <div className="font-semibold text-gray-900 dark:text-white">
+                        Level 6-10
+                      </div>
+                      <div className="text-gray-600 dark:text-gray-300">
+                        1,000-2,700 XP
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                      <div className="font-semibold text-gray-900 dark:text-white">
+                        Level 11-25
+                      </div>
+                      <div className="text-gray-600 dark:text-gray-300">
+                        3,250-15,600 XP
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                      <div className="font-semibold text-gray-900 dark:text-white">
+                        Level 26+
+                      </div>
+                      <div className="text-gray-600 dark:text-gray-300">
+                        20,000+ XP
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Level Titles */}
+                <div>
+                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3">
+                    🎖️ Level Titles
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                      <span className="text-gray-500">Level 1</span>
+                      <span className="font-semibold text-gray-500">
+                        Beginner
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-900/20 rounded">
+                      <span className="text-green-600">Level 5</span>
+                      <span className="font-semibold text-green-600">
+                        Novice
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
+                      <span className="text-blue-600">Level 15</span>
+                      <span className="font-semibold text-blue-600">
+                        Amateur
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-purple-50 dark:bg-purple-900/20 rounded">
+                      <span className="text-purple-600">Level 30</span>
+                      <span className="font-semibold text-purple-600">
+                        Professional
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-pink-50 dark:bg-pink-900/20 rounded">
+                      <span className="text-pink-600">Level 50</span>
+                      <span className="font-semibold text-pink-600">
+                        Expert
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded">
+                      <span className="text-yellow-600">Level 75</span>
+                      <span className="font-semibold text-yellow-600">
+                        Master
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-orange-50 dark:bg-orange-900/20 rounded">
+                      <span className="text-orange-600">Level 100</span>
+                      <span className="font-semibold text-orange-600">
+                        Legend
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-900/20 rounded">
+                      <span className="text-red-600">Level 150</span>
+                      <span className="font-semibold text-red-600">
+                        Karaoke God
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* XP Examples */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                    💡 XP Examples
+                  </h4>
+                  <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+                    <p>
+                      <strong>Perfect Performance (90%+ all scores):</strong>
+                    </p>
+                    <ul className="ml-4 space-y-1">
+                      <li>• Easy Song: ~120 XP</li>
+                      <li>• Medium Song: ~150 XP</li>
+                      <li>• Hard Song: ~195 XP</li>
+                    </ul>
+                    <p className="mt-2">
+                      <strong>Good Performance (70% average):</strong>
+                    </p>
+                    <ul className="ml-4 space-y-1">
+                      <li>• Easy Song: ~60 XP</li>
+                      <li>• Medium Song: ~75 XP</li>
+                      <li>• Hard Song: ~98 XP</li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Leveling Timeline */}
+                <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                  <h4 className="font-semibold text-purple-900 dark:text-purple-100 mb-2">
+                    ⏱️ Leveling Timeline
+                  </h4>
+                  <div className="space-y-2 text-sm text-purple-800 dark:text-purple-200">
+                    <p>
+                      <strong>Level 1 → 2:</strong> ~1-2 good games (100 XP
+                      needed)
+                    </p>
+                    <p>
+                      <strong>Level 5 → 6:</strong> ~2-4 good games (300 XP
+                      needed)
+                    </p>
+                    <p>
+                      <strong>Level 10 → 11:</strong> ~4-8 good games (550 XP
+                      needed)
+                    </p>
+                    <p>
+                      <strong>Level 25 → 26:</strong> ~15-30 good games (2,000
+                      XP needed)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-center mt-6">
+                <Button
+                  onClick={() => setShowScoringModal(false)}
                   className="bg-purple-600 hover:bg-purple-700 text-white"
                 >
                   Got it!

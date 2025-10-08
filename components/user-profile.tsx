@@ -1,11 +1,11 @@
 "use client";
 
-import { LogIn, User } from "lucide-react";
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { getLevelColor, getLevelTitle } from "@/lib/experience";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LogIn } from "lucide-react";
 
 interface UserLevelInfo {
   level: number;
@@ -68,9 +68,11 @@ export function UserProfile() {
           ) : levelInfo ? (
             <>
               <span
-                className={`font-semibold ${getLevelColor(levelInfo.level)}`}
+                className={`font-bold text-lg ${getLevelColor(
+                  levelInfo.level
+                )}`}
               >
-                Level {levelInfo.level}
+                Level {levelInfo.level} - {getLevelTitle(levelInfo.level)}
               </span>
               <br />
               <span className="text-xs">
