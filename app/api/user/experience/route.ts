@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
       pitch,
       songDifficulty = "MEDIUM",
       songId,
+      gameEndReason = "completed",
     } = body;
 
     // Validate required fields
@@ -97,13 +98,21 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Create a GameSession record to track the completed game
+      // Create a GameSession record to track the game
+      const gameStatus =
+        gameEndReason === "completed" ? "COMPLETED" : "ABANDONED";
+      console.log(
+        `🎮 Creating GameSession: ${gameStatus} for song ${songId} with score ${Math.round(
+          totalScore
+        )}`
+      );
+
       await prisma.gameSession.create({
         data: {
           userId: dbUser.id,
           songId: songId,
           gameMode: "SINGLE_PLAYER",
-          status: "COMPLETED",
+          status: gameStatus,
           endedAt: new Date(),
           score: Math.round(totalScore),
         },

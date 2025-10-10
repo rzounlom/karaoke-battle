@@ -155,6 +155,7 @@ function GameplayContent() {
             pitch: pitch,
             songDifficulty: currentSong?.difficulty || "MEDIUM",
             songId: currentSong?.id,
+            gameEndReason: gameEndReason,
           }),
         });
 
@@ -328,6 +329,7 @@ function GameplayContent() {
           pitch: pitch,
           songDifficulty: currentSong?.difficulty || "MEDIUM",
           songId: currentSong?.id,
+          gameEndReason: gameEndReason,
         }),
       });
 

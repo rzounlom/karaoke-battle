@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const recentSessions = await prisma.gameSession.findMany({
       where: {
         userId: dbUser.id,
-        status: "COMPLETED",
+        status: "COMPLETED", // Only show completed songs, not abandoned ones
       },
       include: {
         // We need to get song details from our songs data since we're using static data
@@ -41,6 +41,10 @@ export async function GET(req: NextRequest) {
       },
       take: 5, // Get the 5 most recent completed songs
     });
+
+    console.log(
+      `📊 Found ${recentSessions.length} recent completed sessions for user ${dbUser.id}`
+    );
 
     // Get unique song IDs from recent sessions
     const songIds = [
@@ -53,10 +57,12 @@ export async function GET(req: NextRequest) {
         id: session.id,
         songId: session.songId,
         gameMode: session.gameMode,
+        status: session.status,
         score: session.score,
         completedAt: session.endedAt,
       })),
       songIds, // Frontend can use this to get song details
+      totalSessions: recentSessions.length,
     });
   } catch (error) {
     console.error("Error fetching recent songs:", error);
