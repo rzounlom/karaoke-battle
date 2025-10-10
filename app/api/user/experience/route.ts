@@ -71,6 +71,13 @@ export async function POST(req: NextRequest) {
     );
 
     // Update user in database
+    await prisma.user.update({
+      where: { id: dbUser.id },
+      data: {
+        level: experienceResult.newLevel,
+        experience: experienceResult.newExperience,
+      },
+    });
 
     // Save the score to database
     if (songId) {
@@ -87,6 +94,18 @@ export async function POST(req: NextRequest) {
           currentStreak: 0, // Not used in current system
           maxStreak: 0, // Not used in current system
           gameMode: "SINGLE_PLAYER",
+        },
+      });
+
+      // Create a GameSession record to track the completed game
+      await prisma.gameSession.create({
+        data: {
+          userId: dbUser.id,
+          songId: songId,
+          gameMode: "SINGLE_PLAYER",
+          status: "COMPLETED",
+          endedAt: new Date(),
+          score: Math.round(totalScore),
         },
       });
     }
