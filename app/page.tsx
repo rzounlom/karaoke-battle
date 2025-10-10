@@ -37,7 +37,7 @@ export default function Home() {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <Link href="/songs">
+            <Link href="/game-mode">
               <Button size="lg" variant="karaoke" className="text-lg px-8 py-4">
                 <Mic className="mr-2 h-5 w-5" />
                 Start New Battle

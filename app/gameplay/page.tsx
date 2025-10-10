@@ -556,12 +556,12 @@ function GameplayContent() {
         <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              <Link href="/game-mode">
+              <Link href="/songs">
                 <Button
                   variant="ghost"
                   size="icon"
                   className="text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10"
-                  title="Back to Game Mode"
+                  title="Back to Songs"
                 >
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
@@ -818,13 +818,13 @@ function GameplayContent() {
                       Choose Different Song
                     </Button>
                   </Link>
-                  <Link href="/game-mode">
+                  <Link href="/songs">
                     <Button
                       variant="outline"
                       className="text-gray-900 dark:text-white border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       <ArrowLeft className="h-4 w-4 mr-2" />
-                      Back to Game Mode
+                      Back to Songs
                     </Button>
                   </Link>
                 </div>
