@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+
+# Run lint-staged for staged files
+echo "🧹 Running ESLint on staged files..."
+npx lint-staged
+
+# Run type checking for the entire project
+echo "🔍 Running TypeScript type checking..."
+npm run type-check
+
+echo "✅ Pre-commit checks passed!"

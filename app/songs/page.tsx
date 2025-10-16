@@ -32,7 +32,19 @@ export default function SongsPage() {
     SongWithDuration[]
   >([]);
   const [loading, setLoading] = useState(true);
-  const [recentSongs, setRecentSongs] = useState<any[]>([]);
+  const [recentSongs, setRecentSongs] = useState<Array<{
+    id: string;
+    songId: string;
+    gameMode: string;
+    status: string;
+    score: number;
+    completedAt: string;
+    song: {
+      id: string;
+      title: string;
+      artist: string;
+    };
+  }>>([]);
   const [recentSongsLoading, setRecentSongsLoading] = useState(true);
 
   // Get data from the new songs system
@@ -124,14 +136,33 @@ export default function SongsPage() {
         if (data.success) {
           // Get song details for each recent session
           const recentSongsWithDetails = data.recentSessions
-            .map((session: any) => {
+            .map((session: {
+              id: string;
+              songId: string;
+              gameMode: string;
+              status: string;
+              score: number;
+              completedAt: string;
+            }) => {
               const song = getSongById(session.songId);
               return {
                 ...session,
                 song: song,
               };
             })
-            .filter((item: any) => item.song); // Filter out any songs that weren't found
+            .filter((item: {
+              id: string;
+              songId: string;
+              gameMode: string;
+              status: string;
+              score: number;
+              completedAt: string;
+              song: {
+                id: string;
+                title: string;
+                artist: string;
+              } | null;
+            }) => item.song); // Filter out any songs that weren't found
 
           setRecentSongs(recentSongsWithDetails);
         }
@@ -414,7 +445,12 @@ export default function SongsPage() {
                         variant="karaoke"
                         size="sm"
                         className="w-full"
-                        onClick={() => handleSongSelect(recentSong.song)}
+                        onClick={() => {
+                          const songWithDuration = songsWithDurations.find(s => s.id === recentSong.song.id);
+                          if (songWithDuration) {
+                            handleSongSelect(songWithDuration);
+                          }
+                        }}
                       >
                         <Play className="mr-2 h-3 w-3" />
                         Play Again

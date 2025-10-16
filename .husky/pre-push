@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🚀 Running pre-push checks..."
+
+# Run comprehensive checks before pushing
+echo "🔍 Running TypeScript type checking..."
+npm run type-check
+
+echo "🧹 Running ESLint..."
+npm run lint
+
+echo "🏗️  Running build check..."
+npm run build
+
+echo "✅ All pre-push checks passed! Safe to push to GitHub."
