@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Clock, History, Mic, Play, Search } from "lucide-react";
+import { Clock, History, Mic, Play, Search } from "lucide-react";
 import {
   SongWithDuration,
   getAllSongs,
@@ -12,9 +12,7 @@ import { Suspense, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GameModeModal } from "@/components/game-mode-modal";
-import Link from "next/link";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { UserProfile } from "@/components/user-profile";
+import { PageHeader } from "@/components/page-header";
 
 const sortOptions = ["Title", "Artist", "Newest", "Genre"];
 
@@ -174,23 +172,12 @@ function SongsPageContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
-        {/* Header */}
-        <header className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-4">
-            <Link href="/">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <h1 className="text-2xl font-bold karaoke-text-gradient">
-              Choose Your Song
-            </h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            <UserProfile />
-            <ThemeToggle />
-          </div>
-        </header>
+        <PageHeader
+          title="Karaoke Battle"
+          showBackButton={true}
+          backHref="/"
+          showNavigation={true}
+        />
 
         <div className="container mx-auto px-6 py-8">
           <div className="flex items-center justify-center min-h-96">
@@ -208,25 +195,24 @@ function SongsPageContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
-      {/* Header */}
-      <header className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center space-x-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold karaoke-text-gradient">
-            Choose Your Song
-          </h1>
-        </div>
-        <div className="flex items-center space-x-4">
-          <UserProfile />
-          <ThemeToggle />
-        </div>
-      </header>
+      <PageHeader
+        title="Karaoke Battle"
+        showBackButton={true}
+        backHref="/"
+        showNavigation={true}
+      />
 
       <div className="container mx-auto px-6 py-8">
+        {/* Page Title */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold karaoke-text-gradient mb-2">
+            Choose Your Song
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Select a song and game mode to start your karaoke battle
+          </p>
+        </div>
+
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">

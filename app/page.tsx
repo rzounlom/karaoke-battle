@@ -10,7 +10,7 @@ export default function Home() {
       <PageHeader title="Karaoke Battle" showNavigation={true} />
 
       {/* Hero Section */}
-      <main className="container mx-auto px-6 py-12">
+      <main className="container mx-auto px-6 py-12 min-h-[80vh] flex flex-col justify-center">
         <div className="text-center space-y-8">
           <div className="space-y-4">
             <h1 className="text-5xl md:text-7xl font-bold karaoke-text-gradient">
@@ -40,8 +40,8 @@ export default function Home() {
 
           {/* Features Grid */}
           <div className="grid md:grid-cols-3 gap-8 mt-16">
-            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center mb-4">
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center">
+              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center mb-4 mx-auto">
                 <Mic className="h-6 w-6 text-purple-600 dark:text-purple-400" />
               </div>
               <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
@@ -53,8 +53,8 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-              <div className="w-12 h-12 bg-pink-100 dark:bg-pink-900/50 rounded-lg flex items-center justify-center mb-4">
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center">
+              <div className="w-12 h-12 bg-pink-100 dark:bg-pink-900/50 rounded-lg flex items-center justify-center mb-4 mx-auto">
                 <Users className="h-6 w-6 text-pink-600 dark:text-pink-400" />
               </div>
               <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
@@ -66,8 +66,8 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-              <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg flex items-center justify-center mb-4">
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-200 dark:border-gray-700 text-center">
+              <div className="w-12 h-12 bg-indigo-100 dark:bg-indigo-900/50 rounded-lg flex items-center justify-center mb-4 mx-auto">
                 <Trophy className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
               </div>
               <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
@@ -136,7 +136,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="mt-20 py-8 border-t border-gray-200 dark:border-gray-700">
+      <footer className="h-[8vh] flex items-center justify-center border-t border-gray-200 dark:border-gray-700">
         <div className="container mx-auto px-6 text-center text-gray-600 dark:text-gray-400">
           <p>&copy; 2024 Karaoke Battle. Made with ❤️ for music lovers.</p>
         </div>

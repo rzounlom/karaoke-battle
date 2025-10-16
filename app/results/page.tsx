@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeft,
   BarChart3,
   Crown,
   Heart,
@@ -18,9 +17,8 @@ import {
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { PageHeader } from "@/components/page-header";
 import { ProtectedRoute } from "@/components/protected-route";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { UserProfile } from "@/components/user-profile";
 import { formatScore } from "@/lib/utils";
 import { useState } from "react";
 
@@ -125,25 +123,23 @@ export default function ResultsPage() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
-        {/* Header */}
-        <header className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-4">
-            <Link href="/gameplay">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <h1 className="text-2xl font-bold karaoke-text-gradient">
-              Performance Results
-            </h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            <UserProfile />
-            <ThemeToggle />
-          </div>
-        </header>
+        <PageHeader
+          title="Karaoke Battle"
+          showBackButton={true}
+          backHref="/songs"
+          showNavigation={true}
+        />
 
         <div className="container mx-auto px-6 py-8">
+          {/* Page Title */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold karaoke-text-gradient mb-2">
+              Performance Results
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Your latest karaoke performance breakdown
+            </p>
+          </div>
           <div className="grid lg:grid-cols-3 gap-8">
             {/* Main Results */}
             <div className="lg:col-span-2 space-y-6">
