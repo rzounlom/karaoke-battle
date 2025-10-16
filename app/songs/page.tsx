@@ -9,7 +9,7 @@ import {
   getSongById,
   loadSongDurations,
 } from "@/lib/songs-data";
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -32,19 +32,21 @@ function SongsPageContent() {
     SongWithDuration[]
   >([]);
   const [loading, setLoading] = useState(true);
-  const [recentSongs, setRecentSongs] = useState<Array<{
-    id: string;
-    songId: string;
-    gameMode: string;
-    status: string;
-    score: number;
-    completedAt: string;
-    song: {
+  const [recentSongs, setRecentSongs] = useState<
+    Array<{
       id: string;
-      title: string;
-      artist: string;
-    };
-  }>>([]);
+      songId: string;
+      gameMode: string;
+      status: string;
+      score: number;
+      completedAt: string;
+      song: {
+        id: string;
+        title: string;
+        artist: string;
+      };
+    }>
+  >([]);
   const [recentSongsLoading, setRecentSongsLoading] = useState(true);
 
   // Get data from the new songs system
@@ -136,33 +138,37 @@ function SongsPageContent() {
         if (data.success) {
           // Get song details for each recent session
           const recentSongsWithDetails = data.recentSessions
-            .map((session: {
-              id: string;
-              songId: string;
-              gameMode: string;
-              status: string;
-              score: number;
-              completedAt: string;
-            }) => {
-              const song = getSongById(session.songId);
-              return {
-                ...session,
-                song: song,
-              };
-            })
-            .filter((item: {
-              id: string;
-              songId: string;
-              gameMode: string;
-              status: string;
-              score: number;
-              completedAt: string;
-              song: {
+            .map(
+              (session: {
                 id: string;
-                title: string;
-                artist: string;
-              } | null;
-            }) => item.song); // Filter out any songs that weren't found
+                songId: string;
+                gameMode: string;
+                status: string;
+                score: number;
+                completedAt: string;
+              }) => {
+                const song = getSongById(session.songId);
+                return {
+                  ...session,
+                  song: song,
+                };
+              }
+            )
+            .filter(
+              (item: {
+                id: string;
+                songId: string;
+                gameMode: string;
+                status: string;
+                score: number;
+                completedAt: string;
+                song: {
+                  id: string;
+                  title: string;
+                  artist: string;
+                } | null;
+              }) => item.song
+            ); // Filter out any songs that weren't found
 
           setRecentSongs(recentSongsWithDetails);
         }
@@ -446,7 +452,9 @@ function SongsPageContent() {
                         size="sm"
                         className="w-full"
                         onClick={() => {
-                          const songWithDuration = songsWithDurations.find(s => s.id === recentSong.song.id);
+                          const songWithDuration = songsWithDurations.find(
+                            (s) => s.id === recentSong.song.id
+                          );
                           if (songWithDuration) {
                             handleSongSelect(songWithDuration);
                           }
@@ -476,16 +484,18 @@ function SongsPageContent() {
 
 export default function SongsPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+              <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+            </div>
           </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <SongsPageContent />
     </Suspense>
   );
