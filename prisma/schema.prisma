@@ -53,6 +53,7 @@ model Song {
 
   // Relations
   scores Score[]
+  gameSessions GameSession[]
 
   @@unique([title, artist])
   @@map("songs")
@@ -123,6 +124,7 @@ model GameSession {
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  song Song @relation(fields: [songId], references: [id], onDelete: Cascade)
 
   @@map("game_sessions")
 }

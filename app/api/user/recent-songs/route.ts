@@ -32,8 +32,7 @@ export async function GET() {
         status: "COMPLETED", // Only show completed songs, not abandoned ones
       },
       include: {
-        // We need to get song details from our songs data since we're using static data
-        // For now, we'll return the songId and let the frontend handle getting song details
+        song: true, // Include song details from database
       },
       orderBy: {
         endedAt: "desc",
@@ -59,6 +58,15 @@ export async function GET() {
         status: session.status,
         score: session.score,
         completedAt: session.endedAt,
+        song: session.song
+          ? {
+              id: session.song.customId || session.song.id, // Use customId if available, fallback to database id
+              title: session.song.title,
+              artist: session.song.artist,
+              genre: session.song.genre,
+              difficulty: session.song.difficulty,
+            }
+          : null,
       })),
       songIds, // Frontend can use this to get song details
       totalSessions: recentSessions.length,

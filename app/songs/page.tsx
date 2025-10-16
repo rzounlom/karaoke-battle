@@ -6,7 +6,6 @@ import {
   getAllSongs,
   getAvailableDifficulties,
   getAvailableGenres,
-  getSongById,
   loadSongDurations,
 } from "@/lib/songs-data";
 import { Suspense, useEffect, useState } from "react";
@@ -16,14 +15,10 @@ import { GameModeModal } from "@/components/game-mode-modal";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
-import { useSearchParams } from "next/navigation";
 
 const sortOptions = ["Title", "Artist", "Newest", "Genre"];
 
 function SongsPageContent() {
-  const searchParams = useSearchParams();
-  const gameMode = searchParams.get("mode") || "single";
-
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("All");
   const [selectedDifficulty, setSelectedDifficulty] = useState("All");
@@ -48,7 +43,9 @@ function SongsPageContent() {
         id: string;
         title: string;
         artist: string;
-      };
+        genre?: string;
+        difficulty?: string;
+      } | null;
     }>
   >([]);
   const [recentSongsLoading, setRecentSongsLoading] = useState(true);
@@ -145,39 +142,24 @@ function SongsPageContent() {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          // Get song details for each recent session
-          const recentSongsWithDetails = data.recentSessions
-            .map(
-              (session: {
+          // The API now includes song details, so we can use them directly
+          const recentSongsWithDetails = data.recentSessions.filter(
+            (session: {
+              id: string;
+              songId: string;
+              gameMode: string;
+              status: string;
+              score: number;
+              completedAt: string;
+              song: {
                 id: string;
-                songId: string;
-                gameMode: string;
-                status: string;
-                score: number;
-                completedAt: string;
-              }) => {
-                const song = getSongById(session.songId);
-                return {
-                  ...session,
-                  song: song,
-                };
-              }
-            )
-            .filter(
-              (item: {
-                id: string;
-                songId: string;
-                gameMode: string;
-                status: string;
-                score: number;
-                completedAt: string;
-                song: {
-                  id: string;
-                  title: string;
-                  artist: string;
-                } | null;
-              }) => item.song
-            ); // Filter out any songs that weren't found
+                title: string;
+                artist: string;
+                genre?: string;
+                difficulty?: string;
+              } | null;
+            }) => session.song // Filter out any sessions without song data
+          );
 
           setRecentSongs(recentSongsWithDetails);
         }
@@ -201,12 +183,7 @@ function SongsPageContent() {
               </Button>
             </Link>
             <h1 className="text-2xl font-bold karaoke-text-gradient">
-              Choose Your Song -{" "}
-              {gameMode === "single"
-                ? "Single Player"
-                : gameMode === "multiplayer"
-                ? "Multiplayer"
-                : "Tournament"}
+              Choose Your Song
             </h1>
           </div>
           <div className="flex items-center space-x-4">
@@ -234,18 +211,13 @@ function SongsPageContent() {
       {/* Header */}
       <header className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-4">
-          <Link href="/game-mode">
+          <Link href="/">
             <Button variant="ghost" size="icon">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
           <h1 className="text-2xl font-bold karaoke-text-gradient">
-            Choose Your Song -{" "}
-            {gameMode === "single"
-              ? "Single Player"
-              : gameMode === "multiplayer"
-              ? "Multiplayer"
-              : "Tournament"}
+            Choose Your Song
           </h1>
         </div>
         <div className="flex items-center space-x-4">
@@ -380,11 +352,7 @@ function SongsPageContent() {
                         }}
                       >
                         <Play className="mr-2 h-4 w-4" />
-                        {gameMode === "single"
-                          ? "Play & Level Up"
-                          : gameMode === "multiplayer"
-                          ? "Start Battle"
-                          : "Start Tournament"}
+                        Play Song
                       </Button>
                     </div>
                   </div>
@@ -429,10 +397,10 @@ function SongsPageContent() {
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-sm text-gray-900 dark:text-white truncate">
-                            {recentSong.song.title}
+                            {recentSong.song?.title}
                           </h4>
                           <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                            {recentSong.song.artist}
+                            {recentSong.song?.artist}
                           </p>
                         </div>
                         <div className="ml-2 text-right">
@@ -448,12 +416,26 @@ function SongsPageContent() {
                           <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-600 px-2 py-1 rounded">
                             {recentSong.gameMode.replace("_", " ")}
                           </span>
-                          <span className="text-xs text-gray-500">
-                            {new Date(
-                              recentSong.completedAt
-                            ).toLocaleDateString()}
-                          </span>
+                          {recentSong.song?.genre && (
+                            <span className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 px-2 py-1 rounded">
+                              {recentSong.song.genre}
+                            </span>
+                          )}
+                          {recentSong.song?.difficulty && (
+                            <span
+                              className={`text-xs px-2 py-1 rounded ${getDifficultyColor(
+                                recentSong.song.difficulty
+                              )}`}
+                            >
+                              {recentSong.song.difficulty}
+                            </span>
+                          )}
                         </div>
+                        <span className="text-xs text-gray-500">
+                          {new Date(
+                            recentSong.completedAt
+                          ).toLocaleDateString()}
+                        </span>
                       </div>
 
                       <Button
@@ -461,11 +443,14 @@ function SongsPageContent() {
                         size="sm"
                         className="w-full"
                         onClick={() => {
-                          const songWithDuration = songsWithDurations.find(
-                            (s) => s.id === recentSong.song.id
-                          );
-                          if (songWithDuration) {
-                            handleSongSelect(songWithDuration);
+                          // Find the song by customId (which is what the API returns)
+                          if (recentSong.song) {
+                            const songWithDuration = songsWithDurations.find(
+                              (s) => s.id === recentSong.song!.id
+                            );
+                            if (songWithDuration) {
+                              handleSongSelect(songWithDuration);
+                            }
                           }
                         }}
                       >
