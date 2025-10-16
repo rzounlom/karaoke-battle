@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  ArrowLeft,
-  Gamepad2,
-  Home,
-  Music,
-  Settings,
-  Trophy,
-} from "lucide-react";
+import { ArrowLeft, Home, Music, Settings, Trophy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -57,17 +50,6 @@ export function PageHeader({
               >
                 <Home className="h-4 w-4" />
                 <span>Home</span>
-              </Button>
-            </Link>
-
-            <Link href="/game-mode">
-              <Button
-                variant={pathname === "/game-mode" ? "default" : "ghost"}
-                size="sm"
-                className="flex items-center space-x-2"
-              >
-                <Gamepad2 className="h-4 w-4" />
-                <span>Modes</span>
               </Button>
             </Link>
 

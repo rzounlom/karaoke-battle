@@ -141,7 +141,7 @@ function SimpleGameplayContent() {
         {/* Header */}
         <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-4">
-            <Link href="/game-mode">
+            <Link href="/songs">
               <Button
                 variant="ghost"
                 size="icon"

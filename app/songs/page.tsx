@@ -10,17 +10,17 @@ import {
   loadSongDurations,
 } from "@/lib/songs-data";
 import { Suspense, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { GameModeModal } from "@/components/game-mode-modal";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
+import { useSearchParams } from "next/navigation";
 
 const sortOptions = ["Title", "Artist", "Newest", "Genre"];
 
 function SongsPageContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const gameMode = searchParams.get("mode") || "single";
 
@@ -28,6 +28,10 @@ function SongsPageContent() {
   const [selectedGenre, setSelectedGenre] = useState("All");
   const [selectedDifficulty, setSelectedDifficulty] = useState("All");
   const [sortBy, setSortBy] = useState("Title");
+  const [showModeModal, setShowModeModal] = useState(false);
+  const [selectedSong, setSelectedSong] = useState<SongWithDuration | null>(
+    null
+  );
   const [songsWithDurations, setSongsWithDurations] = useState<
     SongWithDuration[]
   >([]);
@@ -125,8 +129,13 @@ function SongsPageContent() {
   };
 
   const handleSongSelect = (song: SongWithDuration) => {
-    // Navigate directly to gameplay with the selected song and game mode
-    router.push(`/gameplay?songId=${song.id}&mode=${gameMode}`);
+    setSelectedSong(song);
+    setShowModeModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModeModal(false);
+    setSelectedSong(null);
   };
 
   const fetchRecentSongs = async () => {
@@ -186,7 +195,7 @@ function SongsPageContent() {
         {/* Header */}
         <header className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-4">
-            <Link href="/game-mode">
+            <Link href="/">
               <Button variant="ghost" size="icon">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
@@ -478,6 +487,17 @@ function SongsPageContent() {
           </div>
         </div>
       </div>
+
+      {/* Game Mode Modal */}
+      {selectedSong && (
+        <GameModeModal
+          isOpen={showModeModal}
+          onClose={handleCloseModal}
+          songId={selectedSong.id}
+          songTitle={selectedSong.title}
+          songArtist={selectedSong.artist}
+        />
+      )}
     </div>
   );
 }

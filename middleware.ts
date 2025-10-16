@@ -4,7 +4,6 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 const isPublicRoute = createRouteMatcher([
   "/",
   "/songs",
-  "/game-mode",
   "/api/user/sync",
   "/sign-in", // Add sign-in page to public routes
   "/sign-up", // Add sign-up page to public routes (Clerk might redirect here)
