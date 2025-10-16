@@ -37,6 +37,7 @@ model User {
 
 model Song {
   id          String   @id @default(cuid())
+  customId    String?  @unique // Custom ID from songs-data.ts (e.g., "best-news-ever-zw")
   title       String
   artist      String
   genre       String

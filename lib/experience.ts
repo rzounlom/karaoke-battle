@@ -28,23 +28,42 @@ export function calculateExperienceFromScore(
   pitch: number,
   songDifficulty: "EASY" | "MEDIUM" | "HARD" = "MEDIUM"
 ): number {
+  // Validate and sanitize inputs
+  const safeTotalScore = Math.max(0, Math.min(100, Number(totalScore) || 0));
+  const safeAccuracy = Math.max(0, Math.min(100, Number(accuracy) || 0));
+  const safeTiming = Math.max(0, Math.min(100, Number(timing) || 0));
+  const safePitch = Math.max(0, Math.min(100, Number(pitch) || 0));
+
+  // Log if any inputs were invalid
+  if (isNaN(totalScore) || isNaN(accuracy) || isNaN(timing) || isNaN(pitch)) {
+    console.error("Invalid score inputs to calculateExperienceFromScore:", {
+      totalScore,
+      accuracy,
+      timing,
+      pitch,
+      songDifficulty,
+    });
+  }
+
   // Base experience from total score (0-100 scale)
-  const baseExperience = Math.floor(totalScore * 0.5); // 0-50 base XP
+  const baseExperience = Math.floor(safeTotalScore * 0.5); // 0-50 base XP
 
   // Performance bonuses
-  const accuracyBonus = Math.floor(accuracy * 0.3); // 0-30 bonus
-  const timingBonus = Math.floor(timing * 0.2); // 0-20 bonus
-  const pitchBonus = Math.floor(pitch * 0.2); // 0-20 bonus
+  const accuracyBonus = Math.floor(safeAccuracy * 0.3); // 0-30 bonus
+  const timingBonus = Math.floor(safeTiming * 0.2); // 0-20 bonus
+  const pitchBonus = Math.floor(safePitch * 0.2); // 0-20 bonus
 
   // Difficulty multiplier
-  const difficultyMultiplier = {
-    EASY: 0.8,
-    MEDIUM: 1.0,
-    HARD: 1.3,
-  }[songDifficulty];
+  const difficultyMultiplier =
+    {
+      EASY: 0.8,
+      MEDIUM: 1.0,
+      HARD: 1.3,
+    }[songDifficulty] || 1.0;
 
   // Perfect performance bonus (all scores > 90%)
-  const perfectBonus = accuracy > 90 && timing > 90 && pitch > 90 ? 25 : 0;
+  const perfectBonus =
+    safeAccuracy > 90 && safeTiming > 90 && safePitch > 90 ? 25 : 0;
 
   // Calculate total experience
   const totalExperience = Math.floor(
@@ -52,8 +71,27 @@ export function calculateExperienceFromScore(
       difficultyMultiplier
   );
 
-  // Minimum 1 XP, maximum 150 XP per game
-  return Math.max(1, Math.min(150, totalExperience));
+  // Ensure we never return NaN
+  const result = Math.max(1, Math.min(150, totalExperience));
+
+  if (isNaN(result)) {
+    console.error("NaN result in calculateExperienceFromScore:", {
+      totalScore: safeTotalScore,
+      accuracy: safeAccuracy,
+      timing: safeTiming,
+      pitch: safePitch,
+      baseExperience,
+      accuracyBonus,
+      timingBonus,
+      pitchBonus,
+      perfectBonus,
+      difficultyMultiplier,
+      totalExperience,
+    });
+    return 1; // Fallback to minimum experience
+  }
+
+  return result;
 }
 
 /**
@@ -71,6 +109,19 @@ export function getExperienceForLevel(level: number): number {
  * Calculate level from total experience
  */
 export function getLevelFromExperience(totalExperience: number): number {
+  // Ensure totalExperience is a valid number
+  if (
+    typeof totalExperience !== "number" ||
+    isNaN(totalExperience) ||
+    totalExperience < 0
+  ) {
+    console.error(
+      "Invalid totalExperience in getLevelFromExperience:",
+      totalExperience
+    );
+    return 1; // Default to level 1 for invalid input
+  }
+
   let level = 1;
   let requiredXP = 0;
 
@@ -79,7 +130,8 @@ export function getLevelFromExperience(totalExperience: number): number {
     requiredXP = getExperienceForLevel(level);
   }
 
-  return level - 1;
+  // Ensure level is at least 1
+  return Math.max(1, level - 1);
 }
 
 /**
@@ -117,18 +169,45 @@ export function addExperience(
   currentExperience: number,
   experienceGained: number
 ): ExperienceResult {
-  const newExperience = currentExperience + experienceGained;
+  // Validate inputs
+  if (
+    typeof currentLevel !== "number" ||
+    typeof currentExperience !== "number" ||
+    typeof experienceGained !== "number"
+  ) {
+    console.error("Invalid experience calculation inputs:", {
+      currentLevel,
+      currentExperience,
+      experienceGained,
+    });
+    throw new Error("Invalid experience calculation inputs");
+  }
+
+  // Ensure values are non-negative
+  const safeCurrentLevel = Math.max(1, currentLevel);
+  const safeCurrentExperience = Math.max(0, currentExperience);
+  const safeExperienceGained = Math.max(0, experienceGained);
+
+  const newExperience = safeCurrentExperience + safeExperienceGained;
   const newLevel = getLevelFromExperience(newExperience);
-  const leveledUp = newLevel > currentLevel;
+  const leveledUp = newLevel > safeCurrentLevel;
   const experienceToNext = getExperienceToNextLevel(newLevel, newExperience);
 
-  return {
-    experienceGained,
-    newLevel,
-    newExperience,
+  // Final validation of return values
+  const result = {
+    experienceGained: safeExperienceGained,
+    newLevel: Math.max(1, newLevel),
+    newExperience: Math.max(0, newExperience),
     leveledUp,
-    experienceToNext,
+    experienceToNext: Math.max(0, experienceToNext),
   };
+
+  // Log if any values are invalid
+  if (isNaN(result.newLevel) || isNaN(result.newExperience)) {
+    console.error("Invalid result from addExperience:", result);
+  }
+
+  return result;
 }
 
 /**

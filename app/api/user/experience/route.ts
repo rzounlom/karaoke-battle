@@ -43,6 +43,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Handle cases where game ended without completion (abandoned sessions)
+    // Still give minimal experience for attempting
+    const isAbandoned = gameEndReason === "abandoned" || totalScore === 0;
+    if (isAbandoned) {
+      console.log(
+        `🎮 Game abandoned - giving minimal experience. Score: ${totalScore}, Reason: ${gameEndReason}`
+      );
+    }
+
     // Get current user from database
     const dbUser = await prisma.user.findUnique({
       where: { clerkId: user.id },
@@ -65,58 +74,141 @@ export async function POST(req: NextRequest) {
     );
 
     // Calculate new level and experience
-    const experienceResult = addExperience(
-      dbUser.level,
-      dbUser.experience,
-      experienceGained
-    );
+    let experienceResult;
+    try {
+      experienceResult = addExperience(
+        dbUser.level,
+        dbUser.experience,
+        experienceGained
+      );
+    } catch (error) {
+      console.error("Error calculating experience:", error);
+      return NextResponse.json(
+        { success: false, message: "Error calculating experience" },
+        { status: 500 }
+      );
+    }
 
-    // Update user in database
-    await prisma.user.update({
-      where: { id: dbUser.id },
-      data: {
-        level: experienceResult.newLevel,
-        experience: experienceResult.newExperience,
-      },
+    // Debug logging
+    console.log("Experience calculation debug:", {
+      currentLevel: dbUser.level,
+      currentExperience: dbUser.experience,
+      experienceGained,
+      newLevel: experienceResult.newLevel,
+      newExperience: experienceResult.newExperience,
+      newLevelType: typeof experienceResult.newLevel,
+      newExperienceType: typeof experienceResult.newExperience,
     });
 
-    // Save the score to database
-    if (songId) {
-      await prisma.score.create({
-        data: {
-          userId: dbUser.id,
-          songId: songId,
-          totalScore: Math.round(totalScore),
-          accuracy: accuracy,
-          timing: timing,
-          pitch: pitch,
-          lyrics: 0, // Not used in current system
-          perfectNotes: 0, // Not used in current system
-          currentStreak: 0, // Not used in current system
-          maxStreak: 0, // Not used in current system
-          gameMode: "SINGLE_PLAYER",
-        },
+    // Validate experience values before database update
+    if (
+      typeof experienceResult.newLevel !== "number" ||
+      typeof experienceResult.newExperience !== "number"
+    ) {
+      console.error("Invalid experience values:", {
+        newLevel: experienceResult.newLevel,
+        newExperience: experienceResult.newExperience,
+        currentLevel: dbUser.level,
+        currentExperience: dbUser.experience,
+        experienceGained,
       });
-
-      // Create a GameSession record to track the game
-      const gameStatus =
-        gameEndReason === "completed" ? "COMPLETED" : "ABANDONED";
-      console.log(
-        `🎮 Creating GameSession: ${gameStatus} for song ${songId} with score ${Math.round(
-          totalScore
-        )}`
+      return NextResponse.json(
+        { success: false, message: "Invalid experience calculation" },
+        { status: 500 }
       );
+    }
 
-      await prisma.gameSession.create({
-        data: {
-          userId: dbUser.id,
-          songId: songId,
-          gameMode: "SINGLE_PLAYER",
-          status: gameStatus,
-          endedAt: new Date(),
-          score: Math.round(totalScore),
-        },
+    // Update user in database with explicit value conversion and NaN protection
+    const safeLevel = Math.floor(Number(experienceResult.newLevel)) || 1;
+    const safeExperience =
+      Math.floor(Number(experienceResult.newExperience)) || 0;
+
+    // Final NaN check
+    if (isNaN(safeLevel) || isNaN(safeExperience)) {
+      console.error("NaN values detected in database update:", {
+        safeLevel,
+        safeExperience,
+        originalNewLevel: experienceResult.newLevel,
+        originalNewExperience: experienceResult.newExperience,
       });
+      return NextResponse.json(
+        { success: false, message: "Invalid experience values detected" },
+        { status: 500 }
+      );
+    }
+
+    const updateData = {
+      level: safeLevel,
+      experience: safeExperience,
+    };
+
+    console.log("Database update data:", updateData);
+
+    await prisma.user.update({
+      where: { id: dbUser.id },
+      data: updateData,
+    });
+
+    // Save the score to database (only if songId is valid)
+    let song = null;
+    if (songId) {
+      try {
+        // First check if the song exists (lookup by customId)
+        song = await prisma.song.findUnique({
+          where: { customId: songId },
+        });
+
+        if (!song) {
+          console.error(`Song not found with ID: ${songId}`);
+          // Continue without creating score record, but still update experience
+        } else {
+          await prisma.score.create({
+            data: {
+              userId: dbUser.id,
+              songId: song.id, // Use the database song ID, not the customId
+              totalScore: Math.round(totalScore),
+              accuracy: accuracy,
+              timing: timing,
+              pitch: pitch,
+              lyrics: 0, // Not used in current system
+              perfectNotes: 0, // Not used in current system
+              currentStreak: 0, // Not used in current system
+              maxStreak: 0, // Not used in current system
+              gameMode: "SINGLE_PLAYER",
+            },
+          });
+        }
+      } catch (error) {
+        console.error("Error creating score record:", error);
+        // Continue without creating score record, but still update experience
+      }
+
+      // Create a GameSession record to track the game (only if song exists)
+      if (song) {
+        const gameStatus =
+          gameEndReason === "completed" ? "COMPLETED" : "ABANDONED";
+        console.log(
+          `🎮 Creating GameSession: ${gameStatus} for song ${songId} with score ${Math.round(
+            totalScore
+          )}`
+        );
+
+        try {
+          await prisma.gameSession.create({
+            data: {
+              userId: dbUser.id,
+              songId: song.id, // Use the database song ID, not the customId
+              gameMode: "SINGLE_PLAYER",
+              status: gameStatus,
+              endedAt: new Date(),
+              score: Math.round(totalScore),
+            },
+          });
+        } catch (error) {
+          console.error("Error creating GameSession record:", error);
+          // Continue without creating GameSession record
+        }
+      }
     }
 
     // Get updated level info
