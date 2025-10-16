@@ -1,6 +1,12 @@
 #!/usr/bin/env sh
 . "$(dirname "$0")/_/husky.sh"
 
+# Kill all running processes before cleaning
+echo "🛑 Stopping all running processes..."
+pkill -f "next dev" || true
+pkill -f "npm run dev" || true
+pkill -f "node.*next" || true
+
 # Run clean command after successful commit
 echo "🧹 Cleaning build artifacts..."
 npm run clean
