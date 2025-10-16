@@ -9,7 +9,7 @@ import {
   getSongById,
   loadSongDurations,
 } from "@/lib/songs-data";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { UserProfile } from "@/components/user-profile";
 
 const sortOptions = ["Title", "Artist", "Newest", "Genre"];
 
-export default function SongsPage() {
+function SongsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const gameMode = searchParams.get("mode") || "single";
@@ -471,5 +471,22 @@ export default function SongsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SongsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <SongsPageContent />
+    </Suspense>
   );
 }
