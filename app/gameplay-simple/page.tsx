@@ -265,7 +265,7 @@ function SimpleGameplayContent() {
                 <div className="space-y-6">
                   {/* Song Lyrics */}
                   <div className="space-y-4">
-                    <div className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
+                    <div className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white bg-yellow-100 dark:bg-yellow-900/30 px-4 py-3 rounded-lg border-2 border-yellow-200 dark:border-yellow-700/50 shadow-sm">
                       {currentLyric ||
                         (lyricsLoaded
                           ? "Get ready to sing!"
