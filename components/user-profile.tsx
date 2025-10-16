@@ -1,11 +1,12 @@
 "use client";
 
+import { LogIn, Settings } from "lucide-react";
 import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 import { getLevelColor, getLevelTitle } from "@/lib/experience";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { LogIn } from "lucide-react";
+import Link from "next/link";
 
 interface UserLevelInfo {
   level: number;
@@ -85,13 +86,20 @@ export function UserProfile() {
           )}
         </div>
       </div>
-      <UserButton
-        appearance={{
-          elements: {
-            avatarBox: "w-8 h-8",
-          },
-        }}
-      />
+      <div className="flex items-center space-x-2">
+        <Link href="/profile">
+          <Button variant="ghost" size="sm">
+            <Settings className="h-4 w-4" />
+          </Button>
+        </Link>
+        <UserButton
+          appearance={{
+            elements: {
+              avatarBox: "w-8 h-8",
+            },
+          }}
+        />
+      </div>
     </div>
   );
 }

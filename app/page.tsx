@@ -2,25 +2,12 @@ import { Mic, Trophy, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { UserProfile } from "@/components/user-profile";
+import { PageHeader } from "@/components/page-header";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
-      {/* Header */}
-      <header className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center space-x-2">
-          <Mic className="h-8 w-8 text-purple-600 dark:text-purple-400" />
-          <h1 className="text-2xl font-bold karaoke-text-gradient">
-            Karaoke Battle
-          </h1>
-        </div>
-        <div className="flex items-center space-x-4">
-          <UserProfile />
-          <ThemeToggle />
-        </div>
-      </header>
+      <PageHeader title="Karaoke Battle" showNavigation={true} />
 
       {/* Hero Section */}
       <main className="container mx-auto px-6 py-12">
