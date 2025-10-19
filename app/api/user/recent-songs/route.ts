@@ -25,11 +25,11 @@ export async function GET() {
       );
     }
 
-    // Get recent completed game sessions with song details
+    // Get recent game sessions with song details (both completed and abandoned)
     const recentSessions = await prisma.gameSession.findMany({
       where: {
         userId: dbUser.id,
-        status: "COMPLETED", // Only show completed songs, not abandoned ones
+        // Show both completed and abandoned songs
       },
       include: {
         song: true, // Include song details from database
@@ -37,11 +37,11 @@ export async function GET() {
       orderBy: {
         endedAt: "desc",
       },
-      take: 5, // Get the 5 most recent completed songs
+      take: 5, // Get the 5 most recent songs (completed and abandoned)
     });
 
     console.log(
-      `📊 Found ${recentSessions.length} recent completed sessions for user ${dbUser.id}`
+      `📊 Found ${recentSessions.length} recent sessions for user ${dbUser.id}`
     );
 
     // Get unique song IDs from recent sessions

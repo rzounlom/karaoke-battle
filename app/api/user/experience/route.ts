@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       totalScore,
       accuracy,
       timing,
-      pitch,
+      pitch = 0, // Default to 0 since pitch scoring was removed
       songDifficulty = "MEDIUM",
       songId,
       gameEndReason = "completed",
@@ -34,8 +34,7 @@ export async function POST(req: NextRequest) {
     if (
       typeof totalScore !== "number" ||
       typeof accuracy !== "number" ||
-      typeof timing !== "number" ||
-      typeof pitch !== "number"
+      typeof timing !== "number"
     ) {
       return NextResponse.json(
         { success: false, message: "Invalid score data" },
@@ -45,7 +44,10 @@ export async function POST(req: NextRequest) {
 
     // Handle cases where game ended without completion (abandoned sessions)
     // Still give minimal experience for attempting
-    const isAbandoned = gameEndReason === "abandoned" || totalScore === 0;
+    const isAbandoned =
+      gameEndReason === "quit" ||
+      gameEndReason === "abandoned" ||
+      totalScore === 0;
     if (isAbandoned) {
       console.log(
         `🎮 Game abandoned - giving minimal experience. Score: ${totalScore}, Reason: ${gameEndReason}`

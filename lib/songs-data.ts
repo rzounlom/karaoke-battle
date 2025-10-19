@@ -126,10 +126,19 @@ export const availableSongs: Song[] = [
     difficulty: "Medium",
     year: 2018,
   },
+  {
+    id: "billie-jean",
+    title: "Billie Jean",
+    artist: "Michael Jackson",
+    audioFile: "/audio/billie-jean.mp3",
+    lrcFile: "/audio/billie-jean.lrc",
+    genre: "Pop",
+    difficulty: "Medium",
+    year: 1982,
+  },
 ];
 
-// Note: billie-jean.lrc exists but no corresponding mp3 file
-// Only including songs that have both audio and lyrics files
+// All songs have both audio and lyrics files
 
 /**
  * Get song by ID
