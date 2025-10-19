@@ -15,9 +15,6 @@ interface SimpleKaraokeState {
   score: number;
   accuracy: number;
   timing: number;
-  pitch: number;
-  pitchHz: number;
-  currentNote: string;
   transcript: string;
   volumeLevel: number;
   microphoneReady: boolean;
@@ -45,9 +42,6 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
     score: 0,
     accuracy: 0,
     timing: 0,
-    pitch: 0,
-    pitchHz: 0,
-    currentNote: "",
     transcript: "",
     volumeLevel: 0,
     microphoneReady: false,
@@ -166,12 +160,11 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
           })),
         });
 
-        // Calculate proper karaoke score with real pitch data
+        // Calculate karaoke score for backing tracks (accuracy + timing only)
         const scoringResult = calculateKaraokeScore(
           expectedLyrics,
           transcript,
-          userWords,
-          state.pitchHz
+          userWords
         );
 
         setState((prev) => {
@@ -189,9 +182,6 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
             timing: Math.round(
               prev.timing * prevWeight + scoringResult.timing * weight
             ),
-            pitch: Math.round(
-              prev.pitch * prevWeight + scoringResult.pitch * weight
-            ),
             scoringEvents: newScoringEvents,
           };
           console.log("🔄 State update:", {
@@ -199,8 +189,6 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
             newAccuracy: newState.accuracy,
             oldTiming: prev.timing,
             newTiming: newState.timing,
-            oldPitch: prev.pitch,
-            newPitch: newState.pitch,
             scoringEvents: newScoringEvents,
             weight,
             prevWeight,
@@ -463,9 +451,6 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
       score: 0,
       accuracy: 0,
       timing: 0,
-      pitch: 0,
-      pitchHz: 0,
-      currentNote: "",
       transcript: "",
       volumeLevel: 0,
       microphoneReady: false,

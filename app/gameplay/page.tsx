@@ -13,12 +13,10 @@ import {
 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 
-import { AudioAnalysisTest } from "@/components/audio-analysis-test";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { LyricsDisplayWithFrequency } from "@/components/lyrics-display-with-frequency";
 import { ProtectedRoute } from "@/components/protected-route";
-import { SimpleCanvasTest } from "@/components/simple-canvas-test";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
 import { debugLog } from "@/lib/debug";
@@ -96,7 +94,6 @@ function GameplayContent() {
     totalScore: 0,
     accuracy: 0,
     timing: 0,
-    pitch: 0,
     scoringEvents: 0,
   });
 
@@ -108,7 +105,6 @@ function GameplayContent() {
     score,
     accuracy,
     timing,
-    pitch,
     transcript,
     volumeLevel,
     microphoneReady,
@@ -141,7 +137,6 @@ function GameplayContent() {
         totalScore: finalScore,
         accuracy: totalAccuracy,
         timing: timing,
-        pitch: pitch,
         scoringEvents: scoringEvents,
       });
 
@@ -156,7 +151,6 @@ function GameplayContent() {
             totalScore: finalScore,
             accuracy: totalAccuracy,
             timing: timing,
-            pitch: pitch,
             songDifficulty: currentSong?.difficulty || "MEDIUM",
             songId: currentSong?.id,
             gameEndReason: gameEndReason,
@@ -315,7 +309,6 @@ function GameplayContent() {
       totalScore: score,
       accuracy: accuracy,
       timing: timing,
-      pitch: pitch,
       scoringEvents: scoringEvents,
     });
 
@@ -330,7 +323,6 @@ function GameplayContent() {
           totalScore: score,
           accuracy: accuracy,
           timing: timing,
-          pitch: pitch,
           songDifficulty: currentSong?.difficulty || "MEDIUM",
           songId: currentSong?.id,
           gameEndReason: gameEndReason,
@@ -375,7 +367,6 @@ function GameplayContent() {
       totalScore: 0,
       accuracy: 0,
       timing: 0,
-      pitch: 0,
       scoringEvents: 0,
     });
 
@@ -498,14 +489,6 @@ function GameplayContent() {
                     </div>
                     <div className="text-sm text-gray-600 dark:text-white/70">
                       Timing
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-2">
-                      {finalScore.pitch}%
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-white/70">
-                      Pitch
                     </div>
                   </div>
                 </div>
@@ -664,14 +647,6 @@ function GameplayContent() {
                     </div>
                     <div className="text-sm text-gray-600 dark:text-white/70">
                       Timing
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {pitch}%
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-white/70">
-                      Pitch
                     </div>
                   </div>
                   <div>
@@ -836,8 +811,7 @@ function GameplayContent() {
                       <br />
                       Volume: {Math.round(volumeLevel)}%
                       <br />
-                      Accuracy: {accuracy}% | Timing: {timing}% | Pitch: {pitch}
-                      %
+                      Accuracy: {accuracy}% | Timing: {timing}% %
                       <br />
                       Scoring Events: {scoringEvents} (cumulative average)
                       <br />
@@ -848,29 +822,6 @@ function GameplayContent() {
                         ? formatTime(audioPlayer.getState().duration)
                         : "N/A"}
                     </div>
-                  </div>
-
-                  {/* Simple Canvas Test */}
-                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
-                    <h4 className="text-lg font-semibold text-green-800 dark:text-green-200 mb-2">
-                      🎨 Simple Canvas Test
-                    </h4>
-                    <p className="text-sm text-green-700 dark:text-green-300 mb-4">
-                      Basic canvas test to verify rendering works.
-                    </p>
-                    <SimpleCanvasTest />
-                  </div>
-
-                  {/* Phase 1 Audio Analysis Test */}
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-                    <h4 className="text-lg font-semibold text-blue-800 dark:text-blue-200 mb-2">
-                      🎵 Phase 1: Audio Analysis Test
-                    </h4>
-                    <p className="text-sm text-blue-700 dark:text-blue-300 mb-4">
-                      Test the enhanced pitch detection and audio analysis
-                      features.
-                    </p>
-                    <AudioAnalysisTest />
                   </div>
                 </div>
               )}
@@ -1072,15 +1023,6 @@ function GameplayContent() {
                           P
                         </span>
                       </div>
-                      <div>
-                        <h5 className="font-medium text-gray-900 dark:text-white">
-                          Pitch (20% weight)
-                        </h5>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">
-                          How well you match the musical notes. Based on your
-                          voice pitch detection.
-                        </p>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1145,8 +1087,7 @@ function GameplayContent() {
                       <br />
                       <strong>You stop:</strong> After 2.5 minutes (50 phrases)
                       <br />
-                      <strong>Your scores:</strong> 85% Accuracy, 78% Timing,
-                      92% Pitch
+                      <strong>Your scores:</strong> 85% Accuracy, 78% Timing
                       <br />
                       <strong>Result:</strong> These scores reflect your
                       performance on the 50 phrases you sang, not a percentage
@@ -1214,7 +1155,7 @@ function GameplayContent() {
                     </p>
                     <p>
                       <strong>Performance Bonuses:</strong> +0-30 for accuracy,
-                      +0-20 for timing, +0-20 for pitch
+                      +0-20 for timing
                     </p>
                     <p>
                       <strong>Perfect Bonus:</strong> +25 XP if all scores &gt;

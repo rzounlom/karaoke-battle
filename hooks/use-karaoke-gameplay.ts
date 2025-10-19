@@ -15,7 +15,6 @@ interface KaraokeGameplayState {
   score: number;
   accuracy: number;
   timing: number;
-  pitch: number;
   transcript: string;
   volumeLevel: number;
   microphoneReady: boolean;
@@ -27,18 +26,12 @@ interface KaraokeGameplayState {
 }
 
 interface UseKaraokeGameplayOptions {
-  onScoreUpdate?: (
-    score: number,
-    accuracy: number,
-    timing: number,
-    pitch: number
-  ) => void;
-  onGameEnd?: (finalScore: number, totalAccuracy: number) => void;
+  onScoreUpdate?: (score: number, accuracy: number, timing: number) => void;
   voiceThreshold?: number;
 }
 
 export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
-  const { onScoreUpdate, onGameEnd, voiceThreshold = 0.02 } = options;
+  const { onScoreUpdate, voiceThreshold = 0.02 } = options;
 
   const [state, setState] = useState<KaraokeGameplayState>({
     isPlaying: false,
@@ -48,7 +41,6 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
     score: 0,
     accuracy: 0,
     timing: 0,
-    pitch: 0,
     transcript: "",
     volumeLevel: 0,
     microphoneReady: false,
@@ -92,7 +84,7 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
       // Handle game end will be set up later
     });
 
-    player.onLyricsLoadedCallback((lrc) => {
+    player.onLyricsLoadedCallback(() => {
       // Lyrics loaded
     });
 
@@ -126,7 +118,7 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
 
   // Handle transcript updates for scoring
   const handleTranscriptUpdate = useCallback(
-    (transcript: string, confidence: number) => {
+    (transcript: string) => {
       if (!currentSongRef.current || !recordingStartTimeRef.current) return;
 
       const currentTime = Date.now() - recordingStartTimeRef.current;
@@ -164,7 +156,6 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
           score: newScore,
           accuracy: scoringResult.accuracy,
           timing: scoringResult.timing,
-          pitch: scoringResult.pitch,
           currentStreak: newStreak,
           perfectNotes: newPerfectNotes,
           feedback: scoringResult.feedback[0] || "Keep singing!",
@@ -177,8 +168,7 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
         onScoreUpdate(
           scoringResult.totalScore,
           scoringResult.accuracy,
-          scoringResult.timing,
-          scoringResult.pitch
+          scoringResult.timing
         );
       }
 
@@ -195,9 +185,9 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
 
   // Memoize the transcript callback to prevent unnecessary re-initializations
   const onTranscriptCallback = useCallback(
-    (transcript: string, isFinal: boolean, confidence: number) => {
+    (transcript: string, isFinal: boolean) => {
       if (isFinal && transcript.trim()) {
-        handleTranscriptUpdate(transcript, confidence);
+        handleTranscriptUpdate(transcript);
       }
     },
     [handleTranscriptUpdate]
@@ -218,13 +208,7 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
   // Voice recognition hook
   const {
     isListening,
-    isRecording: voiceRecording,
-    transcript,
-    confidence,
     error: voiceError,
-    isVoiceActive,
-    volumeLevel,
-    microphoneReady,
     startListening,
     stopListening,
     reset: resetVoice,
@@ -284,21 +268,6 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
     }));
   }, [stopListening]);
 
-  // Handle game end
-  const handleGameEnd = useCallback(() => {
-    stopListening();
-
-    if (onGameEnd) {
-      onGameEnd(state.score, state.accuracy);
-    }
-
-    setState((prev) => ({
-      ...prev,
-      isPlaying: false,
-      isRecording: false,
-    }));
-  }, [stopListening, onGameEnd, state.score, state.accuracy]);
-
   // Reset game state
   const resetGame = useCallback(() => {
     if (audioPlayerRef.current) {
@@ -326,7 +295,6 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
       score: 0,
       accuracy: 0,
       timing: 0,
-      pitch: 0,
       transcript: "",
       volumeLevel: 0,
       microphoneReady: false,
@@ -340,15 +308,19 @@ export function useKaraokeGameplay(options: UseKaraokeGameplayOptions = {}) {
 
   // Cleanup on unmount
   useEffect(() => {
+    const scoreInterval = scoreUpdateIntervalRef.current;
+    const feedbackTimeout = feedbackTimeoutRef.current;
+    const audioPlayer = audioPlayerRef.current;
+
     return () => {
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.destroy();
+      if (audioPlayer) {
+        audioPlayer.destroy();
       }
-      if (feedbackTimeoutRef.current) {
-        clearTimeout(feedbackTimeoutRef.current);
+      if (feedbackTimeout) {
+        clearTimeout(feedbackTimeout);
       }
-      if (scoreUpdateIntervalRef.current) {
-        clearInterval(scoreUpdateIntervalRef.current);
+      if (scoreInterval) {
+        clearInterval(scoreInterval);
       }
     };
   }, []);
