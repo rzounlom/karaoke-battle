@@ -62,7 +62,30 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { username } = body;
 
-    // Validate input
+    // Handle null username (removing display name)
+    if (username === null) {
+      const updatedUser = await prisma.user.update({
+        where: { clerkId: user.id },
+        data: { username: null },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          level: true,
+          experience: true,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Display name removed successfully",
+        user: updatedUser,
+      });
+    }
+
+    // Validate input for non-null username
     if (!username || typeof username !== "string") {
       return NextResponse.json(
         { success: false, message: "Username is required" },

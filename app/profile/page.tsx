@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertCircle, Save, User } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
@@ -43,18 +43,42 @@ export default function ProfilePage() {
     return null;
   };
 
-  useEffect(() => {
-    if (user) {
+  const fetchUserData = useCallback(async () => {
+    try {
+      const response = await fetch("/api/user/profile");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setUserData({
+            username: data.user.username,
+            email: data.user.email,
+            firstName: data.user.firstName,
+            lastName: data.user.lastName,
+          });
+          setDisplayName(data.user.username || "");
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+      // Fallback to Clerk data if API fails
       setUserData({
-        username: user.username,
-        email: user.primaryEmailAddress?.emailAddress || "",
-        firstName: user.firstName,
-        lastName: user.lastName,
+        username: user?.username || null,
+        email: user?.primaryEmailAddress?.emailAddress || "",
+        firstName: user?.firstName || null,
+        lastName: user?.lastName || null,
       });
-      setDisplayName(user.username || "");
+      setDisplayName(user?.username || "");
+    } finally {
       setLoading(false);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      // Fetch user data from API to get the most up-to-date information
+      fetchUserData();
+    }
+  }, [user, fetchUserData]);
 
   const handleSave = async () => {
     const validationError = validateDisplayName(displayName);
@@ -80,16 +104,48 @@ export default function ProfilePage() {
 
       if (data.success) {
         setSuccess("Display name updated successfully!");
-        // Update local state
-        if (userData) {
-          setUserData({ ...userData, username: displayName.trim() });
-        }
+        // Refetch user data to ensure Account Information is up to date
+        await fetchUserData();
         // Reset the input field
         setDisplayName("");
         // Dispatch custom event to notify other components
         window.dispatchEvent(new CustomEvent("profileUpdated"));
       } else {
         setError(data.message || "Failed to update display name");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveDisplayName = async () => {
+    setSaving(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch("/api/user/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username: null }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSuccess("Display name removed successfully!");
+        // Refetch user data to ensure Account Information is up to date
+        await fetchUserData();
+        // Reset the input field
+        setDisplayName("");
+        // Dispatch custom event to notify other components
+        window.dispatchEvent(new CustomEvent("profileUpdated"));
+      } else {
+        setError(data.message || "Failed to remove display name");
       }
     } catch {
       setError("Network error. Please try again.");
@@ -146,7 +202,9 @@ export default function ProfilePage() {
                     <User className="h-10 w-10 text-purple-600 dark:text-purple-400" />
                   </div>
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {userData?.firstName || userData?.username || "User"}
+                    {userData?.firstName && userData?.lastName
+                      ? `${userData.firstName} ${userData.lastName}`
+                      : userData?.firstName || userData?.username || "User"}
                   </h2>
                   <p className="text-gray-600 dark:text-gray-400">
                     {userData?.email}
@@ -197,8 +255,8 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {/* Save Button */}
-                  <div className="pt-4">
+                  {/* Action Buttons */}
+                  <div className="pt-4 space-y-3">
                     <Button
                       onClick={handleSave}
                       disabled={
@@ -220,6 +278,28 @@ export default function ProfilePage() {
                         </>
                       )}
                     </Button>
+
+                    {/* Remove Display Name Button - Only show if user has a username */}
+                    {userData?.username && (
+                      <Button
+                        onClick={handleRemoveDisplayName}
+                        disabled={saving}
+                        variant="outline"
+                        className="w-full border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 dark:border-red-600 dark:text-red-400 dark:hover:bg-red-900/20"
+                      >
+                        {saving ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600 mr-2"></div>
+                            Removing...
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="mr-2 h-4 w-4" />
+                            Remove Display Name
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </div>
 

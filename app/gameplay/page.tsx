@@ -13,9 +13,12 @@ import {
 } from "lucide-react";
 import { Suspense, useEffect, useState } from "react";
 
+import { AudioAnalysisTest } from "@/components/audio-analysis-test";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { LyricsDisplayWithFrequency } from "@/components/lyrics-display-with-frequency";
 import { ProtectedRoute } from "@/components/protected-route";
+import { SimpleCanvasTest } from "@/components/simple-canvas-test";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
 import { debugLog } from "@/lib/debug";
@@ -115,6 +118,7 @@ function GameplayContent() {
     upcomingLyrics,
     lyricsLoaded,
     scoringEvents,
+    frequencyData,
     loadSong,
     startGame,
     pauseGame,
@@ -681,72 +685,44 @@ function GameplayContent() {
                 </div>
               </div>
 
-              {/* Lyrics Display */}
-              <div className="bg-white/80 dark:bg-white/10 rounded-xl p-8 text-center min-h-[400px] flex flex-col justify-center backdrop-blur-sm border border-gray-200 dark:border-gray-700">
-                {(() => {
-                  console.log(
-                    "🎵 Rendering lyrics display - isInitializing:",
-                    isInitializing,
-                    "error:",
-                    error
-                  );
-                  return null;
-                })()}
-                {isInitializing ? (
+              {/* Lyrics Display with Waveform Background */}
+              {isInitializing ? (
+                <div className="bg-white/80 dark:bg-white/10 rounded-xl p-8 text-center min-h-[400px] flex flex-col justify-center backdrop-blur-sm border border-gray-200 dark:border-gray-700">
                   <div className="text-gray-900 dark:text-white text-xl">
                     Initializing...
                   </div>
-                ) : error ? (
+                </div>
+              ) : error ? (
+                <div className="bg-white/80 dark:bg-white/10 rounded-xl p-8 text-center min-h-[400px] flex flex-col justify-center backdrop-blur-sm border border-gray-200 dark:border-gray-700">
                   <div className="text-red-600 dark:text-red-400">
                     <div className="text-xl font-bold mb-2">Error</div>
                     <div className="text-sm">{error}</div>
                   </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Song Lyrics */}
-                    <div className="space-y-4">
-                      <div className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white bg-yellow-100 dark:bg-yellow-900/30 px-4 py-3 rounded-lg border-2 border-yellow-200 dark:border-yellow-700/50 shadow-sm">
-                        {currentLyric ||
-                          (lyricsLoaded
-                            ? "Get ready to sing!"
-                            : "Loading lyrics...")}
+                </div>
+              ) : (
+                <div className="bg-gradient-to-br from-purple-900 via-pink-900 to-indigo-900 rounded-xl min-h-[400px] backdrop-blur-sm border border-purple-200 dark:border-purple-700">
+                  <LyricsDisplayWithFrequency
+                    currentLyric={currentLyric}
+                    upcomingLyrics={upcomingLyrics}
+                    frequencyData={frequencyData || new Uint8Array(0)}
+                    isVoiceActive={isVoiceActive}
+                    isRecording={isRecording}
+                    className="min-h-[400px]"
+                  />
+
+                  {/* Voice Transcription */}
+                  {transcript && (
+                    <div className="absolute bottom-4 left-4 right-4 bg-black/20 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+                      <div className="text-sm text-white/70 mb-1">
+                        Your voice:
                       </div>
-
-                      {/* Upcoming Lyrics */}
-                      {upcomingLyrics.length > 0 && (
-                        <div className="text-xl md:text-2xl text-gray-600 dark:text-white/60">
-                          {upcomingLyrics[0]}
-                        </div>
-                      )}
-
-                      {upcomingLyrics.length > 1 && (
-                        <div className="text-lg text-gray-500 dark:text-white/40">
-                          {upcomingLyrics[1]}
-                        </div>
-                      )}
+                      <div className="text-white">
+                        &ldquo;{transcript}&rdquo;
+                      </div>
                     </div>
-
-                    {/* Voice Transcription */}
-                    {transcript && (
-                      <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
-                        <div className="text-sm text-gray-600 dark:text-white/70 mb-2">
-                          Your voice:
-                        </div>
-                        <div className="text-lg text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                          &ldquo;{transcript}&rdquo;
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Voice Activity Indicator */}
-                    {isVoiceActive && (
-                      <div className="text-green-600 dark:text-green-400 text-lg font-medium">
-                        🎤 Voice detected! Keep singing!
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               {/* Controls */}
               <div className="bg-white/80 dark:bg-white/10 rounded-lg p-6 backdrop-blur-sm border border-gray-200 dark:border-gray-700">
@@ -834,40 +810,67 @@ function GameplayContent() {
 
               {/* Debug Info - Only show on localhost */}
               {isLocalhost && (
-                <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
-                  <div className="text-sm text-yellow-800 dark:text-yellow-200">
-                    <strong>Debug Info:</strong>
-                    <br />
-                    Song: {currentSong.title} ✅
-                    <br />
-                    Audio Player: {audioPlayer ? "✅" : "❌"}
-                    <br />
-                    Audio Ready: {audioPlayer?.isReadyToPlay() ? "✅" : "❌"}
-                    <br />
-                    Lyrics Loaded: {lyricsLoaded ? "✅" : "❌"}
-                    <br />
-                    Current Lyric: {currentLyric ? `"${currentLyric}"` : "None"}
-                    <br />
-                    Microphone: {microphoneReady ? "✅" : "❌"}
-                    <br />
-                    Playing: {isPlaying ? "✅" : "❌"}
-                    <br />
-                    Paused: {isPaused ? "⏸️" : "❌"}
-                    <br />
-                    Recording: {isRecording ? "🎤" : "⏹️"}
-                    <br />
-                    Volume: {Math.round(volumeLevel)}%
-                    <br />
-                    Accuracy: {accuracy}% | Timing: {timing}% | Pitch: {pitch}%
-                    <br />
-                    Scoring Events: {scoringEvents} (cumulative average)
-                    <br />
-                    Time: {formatTime(currentTime / 1000)}
-                    <br />
-                    Duration:{" "}
-                    {audioPlayer
-                      ? formatTime(audioPlayer.getState().duration)
-                      : "N/A"}
+                <div className="space-y-4">
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
+                    <div className="text-sm text-yellow-800 dark:text-yellow-200">
+                      <strong>Debug Info:</strong>
+                      <br />
+                      Song: {currentSong.title} ✅
+                      <br />
+                      Audio Player: {audioPlayer ? "✅" : "❌"}
+                      <br />
+                      Audio Ready: {audioPlayer?.isReadyToPlay() ? "✅" : "❌"}
+                      <br />
+                      Lyrics Loaded: {lyricsLoaded ? "✅" : "❌"}
+                      <br />
+                      Current Lyric:{" "}
+                      {currentLyric ? `"${currentLyric}"` : "None"}
+                      <br />
+                      Microphone: {microphoneReady ? "✅" : "❌"}
+                      <br />
+                      Playing: {isPlaying ? "✅" : "❌"}
+                      <br />
+                      Paused: {isPaused ? "⏸️" : "❌"}
+                      <br />
+                      Recording: {isRecording ? "🎤" : "⏹️"}
+                      <br />
+                      Volume: {Math.round(volumeLevel)}%
+                      <br />
+                      Accuracy: {accuracy}% | Timing: {timing}% | Pitch: {pitch}
+                      %
+                      <br />
+                      Scoring Events: {scoringEvents} (cumulative average)
+                      <br />
+                      Time: {formatTime(currentTime / 1000)}
+                      <br />
+                      Duration:{" "}
+                      {audioPlayer
+                        ? formatTime(audioPlayer.getState().duration)
+                        : "N/A"}
+                    </div>
+                  </div>
+
+                  {/* Simple Canvas Test */}
+                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                    <h4 className="text-lg font-semibold text-green-800 dark:text-green-200 mb-2">
+                      🎨 Simple Canvas Test
+                    </h4>
+                    <p className="text-sm text-green-700 dark:text-green-300 mb-4">
+                      Basic canvas test to verify rendering works.
+                    </p>
+                    <SimpleCanvasTest />
+                  </div>
+
+                  {/* Phase 1 Audio Analysis Test */}
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                    <h4 className="text-lg font-semibold text-blue-800 dark:text-blue-200 mb-2">
+                      🎵 Phase 1: Audio Analysis Test
+                    </h4>
+                    <p className="text-sm text-blue-700 dark:text-blue-300 mb-4">
+                      Test the enhanced pitch detection and audio analysis
+                      features.
+                    </p>
+                    <AudioAnalysisTest />
                   </div>
                 </div>
               )}

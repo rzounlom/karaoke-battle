@@ -59,6 +59,8 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
     scoringEvents: 0,
   });
 
+  // We'll get timeDomainData from the main microphone hook
+
   const audioPlayerRef = useRef<SimpleAudioPlayer | null>(null);
   const currentSongRef = useRef<Song | null>(null);
   const recordingStartTimeRef = useRef<number | null>(null);
@@ -72,6 +74,8 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
     microphoneReady,
     isVoiceActive,
     volumeLevel,
+    timeDomainData,
+    frequencyData,
     startRecording: startMicRecording,
     pauseRecording: pauseMicRecording,
     resumeRecording: resumeMicRecording,
@@ -359,6 +363,8 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
         throw new Error("Audio player not initialized");
       }
 
+      // Audio analysis is handled by the microphone hook
+
       // Start audio playback
       await audioPlayerRef.current.play();
 
@@ -373,7 +379,7 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
         error: null,
       }));
 
-      console.log("✅ Gameplay started");
+      console.log("✅ Gameplay started with audio analysis");
     } catch (error) {
       console.error("Failed to start gameplay:", error);
       setState((prev) => ({
@@ -522,9 +528,20 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
     };
   }, []);
 
+  // Debug logging for timeDomainData
+  console.log("🎵 Karaoke hook timeDomainData:", {
+    length: timeDomainData?.length || 0,
+    hasData: timeDomainData?.some((v) => v > 0) || false,
+    type: typeof timeDomainData,
+    isArray: Array.isArray(timeDomainData),
+    isUint8Array: timeDomainData instanceof Uint8Array,
+  });
+
   return {
     // State
     ...state,
+    timeDomainData,
+    frequencyData,
 
     // Actions
     loadSong,

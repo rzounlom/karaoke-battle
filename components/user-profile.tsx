@@ -30,7 +30,7 @@ interface UserProfileData {
 }
 
 export function UserProfile() {
-  const { isSignedIn, user } = useUser();
+  const { isSignedIn } = useUser();
   const [levelInfo, setLevelInfo] = useState<UserLevelInfo | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -114,15 +114,21 @@ export function UserProfile() {
       <div className="text-right">
         <div className="text-sm font-medium text-gray-900 dark:text-white">
           {(() => {
-            const displayName =
-              userProfile?.username ||
-              userProfile?.firstName ||
-              user?.firstName ||
-              "User";
+            // Show loading state while fetching profile data
+            if (loading) {
+              return "Loading...";
+            }
+
+            // Only use API data once it's loaded, no Clerk fallbacks
+            const displayName = userProfile?.username
+              ? userProfile.username
+              : userProfile?.firstName && userProfile?.lastName
+              ? `${userProfile.firstName} ${userProfile.lastName}`
+              : userProfile?.firstName || "User";
             console.log("🎭 Display name:", {
               userProfileUsername: userProfile?.username,
               userProfileFirstName: userProfile?.firstName,
-              userFirstName: user?.firstName,
+              userProfileLastName: userProfile?.lastName,
               finalDisplayName: displayName,
             });
             return displayName;

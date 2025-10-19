@@ -321,10 +321,30 @@ export class SimpleAudioPlayer {
   // Lyrics methods
   getCurrentLyric(): string | null {
     if (!this.parsedLrc) return null;
-    const currentLyric = getCurrentLyric(
-      this.parsedLrc,
-      this.audio.currentTime * 1000
+    const timeInMs = this.audio.currentTime * 1000;
+    const currentLyric = getCurrentLyric(this.parsedLrc, timeInMs);
+
+    // DEBUG: Clear timing logs for lyrics
+    console.log(
+      "🎵 LYRICS TIMING DEBUG - Audio time:",
+      this.audio.currentTime,
+      "seconds"
     );
+    console.log(
+      "🎵 LYRICS TIMING DEBUG - Converted time:",
+      timeInMs,
+      "milliseconds"
+    );
+    console.log(
+      "🎵 LYRICS TIMING DEBUG - Current lyric:",
+      currentLyric ? currentLyric.text : "null"
+    );
+    console.log(
+      "🎵 LYRICS TIMING DEBUG - Lyric time:",
+      currentLyric ? currentLyric.time : "null",
+      "ms"
+    );
+
     return currentLyric ? currentLyric.text : null;
   }
 

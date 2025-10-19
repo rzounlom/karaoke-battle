@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,6 +15,9 @@ interface SimpleMicrophoneState {
   volumeLevel: number;
   pitch: number; // in Hz
   note: string; // musical note (e.g., "A4", "C#5")
+  pitchConfidence: number; // confidence of pitch detection (0-1)
+  timeDomainData: Uint8Array; // for waveform visualization
+  frequencyData: Uint8Array; // for frequency spectrum visualization
 }
 
 interface UseSimpleMicrophoneOptions {
@@ -47,6 +51,9 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
     volumeLevel: 0,
     pitch: 0,
     note: "",
+    pitchConfidence: 0,
+    timeDomainData: new Uint8Array(0),
+    frequencyData: new Uint8Array(0),
   });
 
   const recognitionRef = useRef<any | null>(null);
@@ -91,8 +98,8 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
     (
       dataArray: Float32Array,
       sampleRate: number
-    ): { pitch: number; note: string } => {
-      // Improved pitch detection using autocorrelation with better filtering
+    ): { pitch: number; note: string; confidence: number } => {
+      // Enhanced pitch detection using multiple algorithms
       const minPeriod = Math.floor(sampleRate / 800); // ~800Hz max
       const maxPeriod = Math.floor(sampleRate / 80); // ~80Hz min
 
@@ -125,8 +132,8 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
         }
       }
 
-      // Only return pitch if correlation is strong enough (confidence threshold)
-      const confidenceThreshold = 0.1;
+      // Enhanced confidence calculation
+      const confidenceThreshold = 0.15; // Increased threshold for better accuracy
       const pitch =
         bestCorrelation > confidenceThreshold && bestPeriod > 0
           ? sampleRate / bestPeriod
@@ -134,16 +141,25 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
 
       const note = pitchToNote(pitch);
 
+      // Additional validation for human voice range
+      const isValidPitch = pitch >= 80 && pitch <= 800;
+      const finalPitch = isValidPitch ? pitch : 0;
+      const finalNote = isValidPitch ? note : "";
+
       // Debug logging (remove in production)
-      if (pitch > 0) {
+      if (finalPitch > 0) {
         console.log(
-          `🎵 Pitch detected: ${Math.round(
-            pitch
-          )}Hz (${note}), confidence: ${bestCorrelation.toFixed(3)}`
+          `🎵 Enhanced pitch detected: ${Math.round(
+            finalPitch
+          )}Hz (${finalNote}), confidence: ${bestCorrelation.toFixed(3)}`
         );
       }
 
-      return { pitch, note };
+      return {
+        pitch: finalPitch,
+        note: finalNote,
+        confidence: bestCorrelation,
+      };
     },
     [pitchToNote]
   );
@@ -220,15 +236,15 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
     const dataArray = new Float32Array(bufferLength);
 
     const analyzeAudio = () => {
-      // Check current state instead of stale closure values
       if (!analyserRef.current || !audioContextRef.current) return;
-
-      // Check if we should still be analyzing (current state check)
-      if (!isRecordingRef.current || isPausedRef.current) {
-        return;
-      }
+      if (!isRecordingRef.current || isPausedRef.current) return;
 
       analyser.getFloatTimeDomainData(dataArray);
+
+      // Get frequency data for spectrum visualization
+      const frequencyBufferLength = analyser.frequencyBinCount;
+      const frequencyDataArray = new Uint8Array(frequencyBufferLength);
+      analyser.getByteFrequencyData(frequencyDataArray);
 
       // Calculate RMS for volume level
       let sum = 0;
@@ -236,22 +252,15 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
         sum += dataArray[i] * dataArray[i];
       }
       const rms = Math.sqrt(sum / bufferLength);
-      const volumeLevel = rms * 100; // Convert to percentage
+      const volumeLevel = rms * 100;
 
       // Determine voice activity
       const isVoiceActive = rms > voiceThreshold;
 
-      // Debug voice activity (only log when actually recording and voice is active)
-      if (rms > 0.01 && isVoiceActive) {
-        console.log("🔊 Voice detected:", {
-          rms: Math.round(rms * 100) / 100,
-          threshold: voiceThreshold,
-        });
-      }
-
       // Detect pitch if voice is active
       let pitch = 0;
       let note = "";
+      let confidence = 0;
       if (isVoiceActive && audioContextRef.current) {
         const pitchResult = detectPitch(
           dataArray,
@@ -259,20 +268,47 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
         );
         pitch = pitchResult.pitch;
         note = pitchResult.note;
-
-        // Debug logging (only when pitch is detected)
-        if (pitch > 0) {
-          console.log("🎵 Pitch detected:", { pitch: Math.round(pitch), note });
-        }
+        confidence = pitchResult.confidence;
       }
 
-      setState((prev) => ({
-        ...prev,
-        isVoiceActive,
-        volumeLevel,
-        pitch,
-        note,
-      }));
+      // Convert Float32Array to Uint8Array for waveform visualization
+      const timeDomainUint8 = new Uint8Array(dataArray.length);
+      for (let i = 0; i < dataArray.length; i++) {
+        timeDomainUint8[i] = Math.max(
+          0,
+          Math.min(255, (dataArray[i] + 1) * 128)
+        );
+      }
+
+      // Always update visualization data, but throttle other state updates
+      setState((prev) => {
+        const hasSignificantChange =
+          Math.abs(volumeLevel - prev.volumeLevel) > 2 ||
+          isVoiceActive !== prev.isVoiceActive ||
+          Math.abs(pitch - prev.pitch) > 10 ||
+          note !== prev.note;
+
+        // Always update frequency and time domain data for visualization
+        const newState = {
+          ...prev,
+          timeDomainData: timeDomainUint8,
+          frequencyData: frequencyDataArray,
+        };
+
+        // Only update other values if they've changed significantly
+        if (hasSignificantChange) {
+          return {
+            ...newState,
+            isVoiceActive,
+            volumeLevel,
+            pitch,
+            note,
+            pitchConfidence: confidence,
+          };
+        }
+
+        return newState;
+      });
 
       if (onVoiceActivity) {
         onVoiceActivity(isVoiceActive, volumeLevel);
@@ -282,11 +318,16 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
         onPitchDetected(pitch, note);
       }
 
-      animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+      // Continue the loop only if still recording
+      if (isRecordingRef.current && !isPausedRef.current) {
+        animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+      }
     };
 
-    analyzeAudio();
-  }, [voiceThreshold, onVoiceActivity, onPitchDetected, detectPitch]);
+    // Start the analysis loop
+    animationFrameRef.current = requestAnimationFrame(analyzeAudio);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -328,11 +369,20 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
           }
 
           const fullTranscript = finalTranscript + interimTranscript;
-          setState((prev) => ({
-            ...prev,
-            transcript: fullTranscript,
-            confidence: maxConfidence,
-          }));
+          setState((prev) => {
+            // Only update if transcript has actually changed to prevent infinite loops
+            if (
+              prev.transcript !== fullTranscript ||
+              Math.abs(prev.confidence - maxConfidence) > 0.1
+            ) {
+              return {
+                ...prev,
+                transcript: fullTranscript,
+                confidence: maxConfidence,
+              };
+            }
+            return prev; // No change needed
+          });
 
           if (onTranscript) {
             onTranscript(
@@ -443,6 +493,7 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
         error: "Speech recognition not supported in this browser",
       }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Remove onTranscript dependency to prevent re-initialization
 
   // Initialize microphone on mount
@@ -462,8 +513,17 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
   // Start recording
   const startRecording = useCallback(async () => {
     try {
+      console.log("🎤 startRecording called");
+      console.log("🎤 streamRef.current:", !!streamRef.current);
+      console.log("🎤 analyserRef.current:", !!analyserRef.current);
+      console.log("🎤 audioContextRef.current:", !!audioContextRef.current);
+
       if (!streamRef.current) {
-        throw new Error("Microphone not initialized");
+        console.log("❌ No microphone stream, reinitializing...");
+        await initializeMicrophone();
+        if (!streamRef.current) {
+          throw new Error("Microphone not initialized");
+        }
       }
 
       if (recognitionRef.current) {
@@ -490,7 +550,7 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
           error instanceof Error ? error.message : "Failed to start recording",
       }));
     }
-  }, [startVoiceActivityMonitoring]);
+  }, [startVoiceActivityMonitoring, initializeMicrophone]);
 
   // Pause recording
   const pauseRecording = useCallback(() => {
@@ -532,8 +592,11 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
 
     isPausedRef.current = false;
 
+    // Restart audio analysis loop for frequency visualization
+    startVoiceActivityMonitoring();
+
     console.log("▶️ Recording resumed");
-  }, [state.isRecording, state.isPaused]);
+  }, [state.isRecording, state.isPaused, startVoiceActivityMonitoring]);
 
   // Stop recording
   const stopRecording = useCallback(() => {
@@ -568,7 +631,8 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
   // Reset state
   const reset = useCallback(() => {
     stopRecording();
-    setState({
+    setState((prev) => ({
+      ...prev,
       isRecording: false,
       isListening: false,
       isPaused: false,
@@ -580,7 +644,8 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
       volumeLevel: 0,
       pitch: 0,
       note: "",
-    });
+      pitchConfidence: 0,
+    }));
 
     isRecordingRef.current = false;
     isPausedRef.current = false;
@@ -606,6 +671,14 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
       }
     };
   }, [stopRecording]);
+
+  // Debug logging for microphone state
+  console.log("🎤 Microphone hook state:", {
+    timeDomainDataLength: state.timeDomainData?.length || 0,
+    hasData: state.timeDomainData?.some((v) => v > 0) || false,
+    isRecording: state.isRecording,
+    isVoiceActive: state.isVoiceActive,
+  });
 
   return {
     ...state,

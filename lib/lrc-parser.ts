@@ -92,6 +92,32 @@ export function getCurrentLyric(
     }
   }
 
+  // DEBUG: Clear timing comparison logs
+  console.log("🎵 LRC PARSER DEBUG - Current time:", currentTime, "ms");
+  console.log(
+    "🎵 LRC PARSER DEBUG - Found lyric:",
+    currentLine ? currentLine.text : "null"
+  );
+  console.log(
+    "🎵 LRC PARSER DEBUG - Lyric time:",
+    currentLine ? currentLine.time : "null",
+    "ms"
+  );
+  console.log(
+    "🎵 LRC PARSER DEBUG - Time difference:",
+    currentLine ? currentTime - currentLine.time : "null",
+    "ms"
+  );
+
+  // DEBUG: Show first few LRC lines to check timing
+  if (parsedLrc.lines.length > 0) {
+    console.log("🎵 LRC FILE DEBUG - First 3 lines:");
+    for (let i = 0; i < Math.min(3, parsedLrc.lines.length); i++) {
+      const line = parsedLrc.lines[i];
+      console.log(`  Line ${i}: [${line.time}ms] "${line.text}"`);
+    }
+  }
+
   return currentLine;
 }
 

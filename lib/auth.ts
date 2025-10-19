@@ -24,7 +24,9 @@ export async function syncUser() {
           email: user.emailAddresses[0]?.emailAddress || existingUser.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          username: user.username,
+          // Only update username if it's not already set in our database
+          // This preserves custom usernames set by users
+          username: existingUser.username || user.username,
           avatar: user.imageUrl,
         },
       });
