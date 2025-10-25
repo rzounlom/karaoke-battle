@@ -133,6 +133,9 @@ function GameplayContent() {
       // Set reason as completed
       setGameEndReason("completed");
 
+      // Mark that user has completed the session naturally
+      setSessionConfirmed(true);
+
       // Capture final scores and show results when song completes naturally
       setFinalScore({
         totalScore: finalScore,
@@ -141,34 +144,38 @@ function GameplayContent() {
         scoringEvents: scoringEvents,
       });
 
-      // Update user experience
-      try {
-        const response = await fetch("/api/user/experience", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            totalScore: finalScore,
-            accuracy: totalAccuracy,
-            timing: timing,
-            songDifficulty: currentSong?.difficulty || "MEDIUM",
-            songId: currentSong?.id,
-            gameEndReason: gameEndReason,
-          }),
-        });
+      // Update user experience - only if session is confirmed
+      if (sessionConfirmed) {
+        try {
+          const response = await fetch("/api/user/experience", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              totalScore: finalScore,
+              accuracy: totalAccuracy,
+              timing: timing,
+              songDifficulty: currentSong?.difficulty || "MEDIUM",
+              songId: currentSong?.id,
+              gameEndReason: gameEndReason,
+            }),
+          });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            debugLog("Experience updated:", data);
-            if (data.leveledUp) {
-              debugLog("🎉 Level up! New level:", data.newLevel);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              debugLog("Experience updated:", data);
+              if (data.leveledUp) {
+                debugLog("🎉 Level up! New level:", data.newLevel);
+              }
             }
           }
+        } catch (error) {
+          console.error("Error updating experience:", error);
         }
-      } catch (error) {
-        console.error("Error updating experience:", error);
+      } else {
+        console.log("Session not confirmed - no experience recorded");
       }
 
       // Show results screen
@@ -316,38 +323,34 @@ function GameplayContent() {
       scoringEvents: scoringEvents,
     });
 
-    // Update user experience - only if session is confirmed
-    if (sessionConfirmed) {
-      try {
-        const response = await fetch("/api/user/experience", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            totalScore: score,
-            accuracy: accuracy,
-            timing: timing,
-            songDifficulty: currentSong?.difficulty || "MEDIUM",
-            songId: currentSong?.id,
-            gameEndReason: gameEndReason,
-          }),
-        });
+    // Update user experience - user has explicitly confirmed they want to end the session
+    try {
+      const response = await fetch("/api/user/experience", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          totalScore: score,
+          accuracy: accuracy,
+          timing: timing,
+          songDifficulty: currentSong?.difficulty || "MEDIUM",
+          songId: currentSong?.id,
+          gameEndReason: gameEndReason,
+        }),
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            console.log("Experience updated:", data);
-            if (data.leveledUp) {
-              console.log("🎉 Level up! New level:", data.newLevel);
-            }
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          console.log("Experience updated:", data);
+          if (data.leveledUp) {
+            console.log("🎉 Level up! New level:", data.newLevel);
           }
         }
-      } catch (error) {
-        console.error("Error updating experience:", error);
       }
-    } else {
-      console.log("Session not confirmed - no experience recorded");
+    } catch (error) {
+      console.error("Error updating experience:", error);
     }
 
     // Show results screen

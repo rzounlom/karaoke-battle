@@ -44,6 +44,16 @@ export async function GET() {
       `📊 Found ${recentSessions.length} recent sessions for user ${dbUser.id}`
     );
 
+    // Debug: Log the recent sessions with their endedAt timestamps
+    console.log("🔍 Recent sessions debug:");
+    recentSessions.forEach((session, index) => {
+      console.log(
+        `${index + 1}. ${session.song?.title} - ${session.endedAt} - Score: ${
+          session.score
+        } - Status: ${session.status}`
+      );
+    });
+
     // Get unique song IDs from recent sessions
     const songIds = [
       ...new Set(recentSessions.map((session) => session.songId)),

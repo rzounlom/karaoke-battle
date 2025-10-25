@@ -155,13 +155,22 @@ export async function POST(req: NextRequest) {
     let song = null;
     if (songId) {
       try {
+        console.log(`🔍 Looking up song with customId: ${songId}`);
+
         // First check if the song exists (lookup by customId)
         song = await prisma.song.findUnique({
           where: { customId: songId },
         });
 
         if (!song) {
-          console.error(`Song not found with ID: ${songId}`);
+          console.error(`❌ Song not found with customId: ${songId}`);
+
+          // Try to find all songs to debug
+          const allSongs = await prisma.song.findMany({
+            select: { customId: true, title: true, artist: true },
+          });
+          console.log(`📋 Available songs in database:`, allSongs);
+
           // Continue without creating score record, but still update experience
         } else {
           await prisma.score.create({
@@ -196,7 +205,7 @@ export async function POST(req: NextRequest) {
         );
 
         try {
-          await prisma.gameSession.create({
+          const gameSession = await prisma.gameSession.create({
             data: {
               userId: dbUser.id,
               songId: song.id, // Use the database song ID, not the customId
@@ -206,8 +215,15 @@ export async function POST(req: NextRequest) {
               score: Math.round(totalScore),
             },
           });
+          console.log(`✅ GameSession created successfully:`, {
+            id: gameSession.id,
+            songId: gameSession.songId,
+            status: gameSession.status,
+            score: gameSession.score,
+            endedAt: gameSession.endedAt,
+          });
         } catch (error) {
-          console.error("Error creating GameSession record:", error);
+          console.error("❌ Error creating GameSession record:", error);
           // Continue without creating GameSession record
         }
       }
