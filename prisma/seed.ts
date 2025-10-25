@@ -380,6 +380,40 @@ async function main() {
         { time: 20, text: "I was made to overcome" },
       ],
     },
+    {
+      customId: "man-i-need-od",
+      title: "Man I Need",
+      artist: "Olivia Dean",
+      genre: "Pop",
+      difficulty: Difficulty.MEDIUM,
+      duration: "3:30",
+      year: 2024,
+      lyrics: [
+        { time: 0, text: "Man I need you to understand" },
+        { time: 4, text: "This life is more than what I planned" },
+        { time: 8, text: "Every step I take, every move I make" },
+        { time: 12, text: "I need your hand to guide me through" },
+        { time: 16, text: "Man I need you to see the truth" },
+        { time: 20, text: "In everything I do, I'm thinking of you" },
+      ],
+    },
+    {
+      customId: "try-again",
+      title: "Try Again",
+      artist: "Aaliyah",
+      genre: "R&B",
+      difficulty: Difficulty.MEDIUM,
+      duration: "4:44",
+      year: 2000,
+      lyrics: [
+        { time: 0, text: "If at first you don't succeed" },
+        { time: 4, text: "Then dust yourself off and try again" },
+        { time: 8, text: "You can dust it off and try again" },
+        { time: 12, text: "Try again" },
+        { time: 16, text: "If at first you don't succeed" },
+        { time: 20, text: "Then dust yourself off and try again" },
+      ],
+    },
   ];
 
   for (const song of songs) {

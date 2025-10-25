@@ -36,6 +36,7 @@ function GameplayContent() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showScoringModal, setShowScoringModal] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
+  const [sessionConfirmed, setSessionConfirmed] = useState(false);
 
   // Mock leaderboard data
   const mockLeaderboard = [
@@ -295,6 +296,9 @@ function GameplayContent() {
   };
 
   const confirmStopGame = async () => {
+    // Mark that user has explicitly confirmed they want to end the session
+    setSessionConfirmed(true);
+
     // Stop the game and calculate final score
     const audioPlayer = getAudioPlayer();
     if (audioPlayer) {
@@ -312,34 +316,38 @@ function GameplayContent() {
       scoringEvents: scoringEvents,
     });
 
-    // Update user experience
-    try {
-      const response = await fetch("/api/user/experience", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          totalScore: score,
-          accuracy: accuracy,
-          timing: timing,
-          songDifficulty: currentSong?.difficulty || "MEDIUM",
-          songId: currentSong?.id,
-          gameEndReason: gameEndReason,
-        }),
-      });
+    // Update user experience - only if session is confirmed
+    if (sessionConfirmed) {
+      try {
+        const response = await fetch("/api/user/experience", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            totalScore: score,
+            accuracy: accuracy,
+            timing: timing,
+            songDifficulty: currentSong?.difficulty || "MEDIUM",
+            songId: currentSong?.id,
+            gameEndReason: gameEndReason,
+          }),
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          console.log("Experience updated:", data);
-          if (data.leveledUp) {
-            console.log("🎉 Level up! New level:", data.newLevel);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            console.log("Experience updated:", data);
+            if (data.leveledUp) {
+              console.log("🎉 Level up! New level:", data.newLevel);
+            }
           }
         }
+      } catch (error) {
+        console.error("Error updating experience:", error);
       }
-    } catch (error) {
-      console.error("Error updating experience:", error);
+    } else {
+      console.log("Session not confirmed - no experience recorded");
     }
 
     // Show results screen
@@ -363,6 +371,7 @@ function GameplayContent() {
 
     // Reset local state
     setGameEndReason("completed");
+    setSessionConfirmed(false);
     setFinalScore({
       totalScore: 0,
       accuracy: 0,
@@ -908,11 +917,15 @@ function GameplayContent() {
               <div className="text-center">
                 <div className="text-2xl mb-4">🛑</div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Stop Game?
+                  End Session & Save Score?
                 </h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-6">
-                  Are you sure you want to stop? We&apos;ll calculate your final
-                  score and end the session.
+                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                  This will end your current session and save your progress to
+                  the database. Your score and experience will be recorded.
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                  If you refresh the page or navigate away without clicking
+                  &quot;End Session&quot;, no progress will be saved.
                 </p>
                 <div className="flex space-x-4 justify-center">
                   <Button
@@ -927,7 +940,7 @@ function GameplayContent() {
                     onClick={confirmStopGame}
                     className="bg-red-600 hover:bg-red-700"
                   >
-                    Stop Game
+                    End Session & Save
                   </Button>
                 </div>
               </div>

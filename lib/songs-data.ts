@@ -136,6 +136,26 @@ export const availableSongs: Song[] = [
     difficulty: "Medium",
     year: 1982,
   },
+  {
+    id: "man-i-need-od",
+    title: "Man I Need",
+    artist: "Olivia Dean",
+    audioFile: "/audio/man-i-need-od.mp3",
+    lrcFile: "/audio/man-i-need-od.lrc",
+    genre: "Pop",
+    difficulty: "Medium",
+    year: 2024,
+  },
+  {
+    id: "try-again",
+    title: "Try Again",
+    artist: "Aaliyah",
+    audioFile: "/audio/try-again.mp3",
+    lrcFile: "/audio/try-again.lrc",
+    genre: "R&B",
+    difficulty: "Medium",
+    year: 2000,
+  },
 ];
 
 // All songs have both audio and lyrics files
