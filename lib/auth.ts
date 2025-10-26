@@ -18,28 +18,36 @@ export async function syncUser() {
 
     if (existingUser) {
       // Update existing user
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateData: any = {
+        email: user.emailAddresses[0]?.emailAddress || existingUser.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        avatar: user.imageUrl,
+      };
+
+      // Only update username if our DB username is null and Clerk has a username
+      if (!existingUser.username && user.username) {
+        updateData.username = user.username;
+      }
+
       await prisma.user.update({
         where: { clerkId: user.id },
-        data: {
-          email: user.emailAddresses[0]?.emailAddress || existingUser.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          // Only update username if it's not already set in our database
-          // This preserves custom usernames set by users
-          username: existingUser.username || user.username,
-          avatar: user.imageUrl,
-        },
+        data: updateData,
       });
       return { success: true, message: "User updated", user: existingUser };
     } else {
       // Create new user
+      const email = user.emailAddresses[0]?.emailAddress || "";
+      const emailUsername = email.split("@")[0]; // Extract username from email
+
       const newUser = await prisma.user.create({
         data: {
           clerkId: user.id,
-          email: user.emailAddresses[0]?.emailAddress || "",
+          email: email,
           firstName: user.firstName,
           lastName: user.lastName,
-          username: user.username,
+          username: user.username || emailUsername, // Use Clerk username or email-based username
           avatar: user.imageUrl,
         },
       });
