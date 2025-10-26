@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowLeft, Music, Settings, Trophy } from "lucide-react";
+import { ArrowLeft, Music, Settings, Trophy, Users } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
+import { NotificationBell } from "@/components/notification-bell";
 import { useUser } from "@clerk/nextjs";
 
 interface PageHeaderProps {
@@ -92,6 +93,21 @@ export function PageHeader({
               </Button>
             </Link>
 
+            <Link href="/friends">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`flex items-center space-x-2 ${
+                  pathname === "/friends"
+                    ? "text-purple-600 dark:text-purple-400"
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
+              >
+                <Users className="h-4 w-4" />
+                <span>Friends</span>
+              </Button>
+            </Link>
+
             <Link href="/profile">
               <Button
                 variant="ghost"
@@ -124,8 +140,9 @@ export function PageHeader({
         )}
       </div>
 
-      {/* Right side - Theme toggle and User profile */}
+      {/* Right side - Notifications, Theme toggle and User profile */}
       <div className="flex items-center space-x-4">
+        {shouldShowNavigation && <NotificationBell />}
         <UserProfile />
         <ThemeToggle />
       </div>
