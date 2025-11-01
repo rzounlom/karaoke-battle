@@ -13,7 +13,7 @@ import {
   Maximize,
   Minimize,
 } from "lucide-react";
-import { Suspense, useEffect, useState, useRef } from "react";
+import { Suspense, useEffect, useState, useRef, useCallback } from "react";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -29,6 +29,7 @@ import { useGameplayEvents } from "@/hooks/use-gameplay-events";
 import { debugLog } from "@/lib/debug";
 import { formatTime } from "@/lib/utils";
 import { getSongById } from "@/lib/songs-data";
+import { getLevelTitle } from "@/lib/experience";
 import { useSearchParams } from "next/navigation";
 import { useSimpleKaraoke } from "@/hooks/use-simple-karaoke";
 
@@ -64,49 +65,23 @@ function GameplayContent() {
     },
   });
 
-  // Mock leaderboard data
-  const mockLeaderboard = [
-    { rank: 1, player: "KaraokeKing", score: 98, level: 45, title: "Expert" },
-    {
-      rank: 2,
-      player: "SongMaster",
-      score: 96,
-      level: 38,
-      title: "Professional",
-    },
-    { rank: 3, player: "VoiceLegend", score: 94, level: 52, title: "Expert" },
-    {
-      rank: 4,
-      player: "MelodyPro",
-      score: 92,
-      level: 29,
-      title: "Professional",
-    },
-    { rank: 5, player: "HarmonyHero", score: 90, level: 41, title: "Expert" },
-    {
-      rank: 6,
-      player: "TuneTitan",
-      score: 88,
-      level: 33,
-      title: "Professional",
-    },
-    { rank: 7, player: "RhythmRuler", score: 86, level: 27, title: "Amateur" },
-    {
-      rank: 8,
-      player: "PitchPerfect",
-      score: 84,
-      level: 35,
-      title: "Professional",
-    },
-    {
-      rank: 9,
-      player: "VocalVirtuoso",
-      score: 82,
-      level: 31,
-      title: "Professional",
-    },
-    { rank: 10, player: "MusicMaven", score: 80, level: 24, title: "Amateur" },
-  ];
+  // Real leaderboard data
+  const [leaderboard, setLeaderboard] = useState<
+    Array<{
+      id: string; // Unique session ID
+      rank: number;
+      userId: string;
+      player: string;
+      score: number;
+      level: number;
+      avatar: string | null;
+    }>
+  >([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [userBestScore, setUserBestScore] = useState<{
+    score: number;
+    rank: number | null;
+  } | null>(null);
 
   // Check if we're running locally for debug info
   const isLocalhost =
@@ -265,6 +240,9 @@ function GameplayContent() {
             if (data.leveledUp) {
               debugLog("🎉 Level up! New level:", data.newLevel);
             }
+            
+            // Refresh leaderboard after completing song
+            fetchLeaderboard();
           }
         }
       } catch (error) {
@@ -343,6 +321,32 @@ function GameplayContent() {
     }
   }, [isVoiceActive, volumeLevel]);
 
+  // Fetch leaderboard data
+  const fetchLeaderboard = useCallback(async () => {
+    if (!currentSong?.id) return;
+
+    try {
+      setLeaderboardLoading(true);
+      const response = await fetch(`/api/songs/${currentSong.id}/leaderboard`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setLeaderboard(data.leaderboard || []);
+          setUserBestScore(data.userBestScore || null);
+          debugLog("🏆 Leaderboard fetched:", {
+            entries: data.leaderboard?.length || 0,
+            userBestScore: data.userBestScore,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching leaderboard:", error);
+    } finally {
+      setLeaderboardLoading(false);
+    }
+  }, [currentSong?.id]);
+
   // Load song when component mounts
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -352,6 +356,10 @@ function GameplayContent() {
 
     if (currentSong) {
       debugLog("🎵 Loading song:", currentSong);
+      
+      // Fetch leaderboard data
+      fetchLeaderboard();
+      
       setTimeout(async () => {
         try {
           // Additional validation before loading
@@ -388,7 +396,7 @@ function GameplayContent() {
       }, 500);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSong]);
+  }, [currentSong, fetchLeaderboard]);
 
   const togglePlay = async () => {
     if (isPlaying) {
@@ -522,6 +530,9 @@ function GameplayContent() {
           if (data.leveledUp) {
             console.log("🎉 Level up! New level:", data.newLevel);
           }
+          
+          // Refresh leaderboard after completing song
+          fetchLeaderboard();
         }
       }
     } catch (error) {
@@ -1311,60 +1322,98 @@ function GameplayContent() {
                 </div>
 
                 <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
-                  {mockLeaderboard.map((entry) => (
-                    <div
-                      key={entry.rank}
-                      className={`flex items-center justify-between p-2 rounded-lg ${
-                        entry.rank <= 3
-                          ? "bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border border-yellow-200 dark:border-yellow-700"
-                          : "bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50"
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div
-                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                            entry.rank === 1
-                              ? "bg-yellow-500 text-white"
-                              : entry.rank === 2
-                              ? "bg-gray-400 text-white"
-                              : entry.rank === 3
-                              ? "bg-amber-600 text-white"
-                              : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
-                          }`}
-                        >
-                          {entry.rank}
-                        </div>
-                        <div>
-                          <div className="font-medium text-gray-900 dark:text-white text-sm">
-                            {entry.player}
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            Level {entry.level} - {entry.title}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-gray-900 dark:text-white">
-                          {entry.score}%
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          Score
-                        </div>
+                  {leaderboardLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="text-gray-500 dark:text-gray-400 text-sm">
+                        Loading leaderboard...
                       </div>
                     </div>
-                  ))}
+                  ) : leaderboard.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+                      <div className="text-4xl mb-3">🎤</div>
+                      <div className="font-semibold text-gray-900 dark:text-white text-sm mb-1">
+                        No high score yet!
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Be the first to set the bar and claim your spot on the leaderboard! 🏆
+                      </div>
+                    </div>
+                  ) : (
+                    leaderboard.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className={`flex items-center justify-between p-2 rounded-lg ${
+                          entry.rank <= 3
+                            ? "bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border border-yellow-200 dark:border-yellow-700"
+                            : "bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-600/50"
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div
+                            className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                              entry.rank === 1
+                                ? "bg-yellow-500 text-white"
+                                : entry.rank === 2
+                                ? "bg-gray-400 text-white"
+                                : entry.rank === 3
+                                ? "bg-amber-600 text-white"
+                                : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300"
+                            }`}
+                          >
+                            {entry.rank}
+                          </div>
+                          <div>
+                            <div className="font-medium text-gray-900 dark:text-white text-sm">
+                              {entry.player}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              Level {entry.level} - {getLevelTitle(entry.level)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-gray-900 dark:text-white">
+                            {entry.score.toLocaleString()}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Points
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                   <div className="text-center">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                      Your best score will appear here
-                    </p>
-                    <div className="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-3">
-                      <div className="text-sm text-gray-600 dark:text-gray-300">
-                        Play to see your ranking!
-                      </div>
-                    </div>
+                    {userBestScore ? (
+                      <>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                          Your Best Score
+                        </p>
+                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
+                          <div className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                            {userBestScore.score.toLocaleString()} points
+                          </div>
+                          {userBestScore.rank && (
+                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                              Rank #{userBestScore.rank} on leaderboard
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                          Your best score will appear here
+                        </p>
+                        <div className="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-3">
+                          <div className="text-sm text-gray-600 dark:text-gray-300">
+                            Play to see your ranking!
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
