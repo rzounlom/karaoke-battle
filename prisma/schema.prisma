@@ -11,68 +11,72 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  clerkId   String   @unique
-  email     String   @unique
-  username  String?  @unique
-  firstName String?
-  lastName  String?
-  avatar    String?
-  level     Int      @default(1)
-  experience Int     @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(cuid())
+  clerkId    String   @unique
+  email      String   @unique
+  username   String?  @unique
+  firstName  String?
+  lastName   String?
+  avatar     String?
+  level      Int      @default(1)
+  experience Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   // Relations
-  scores       Score[]
-  achievements UserAchievement[]
-  gameSessions GameSession[]
-  friends      Friendship[] @relation("UserFriends")
-  friendsOf    Friendship[] @relation("FriendsUser")
-  rooms        Room[]       @relation("RoomCreator")
-  roomMembers  RoomMember[]
+  scores             Score[]
+  achievements       UserAchievement[]
+  gameSessions       GameSession[]
+  friends            Friendship[]      @relation("UserFriends")
+  friendsOf          Friendship[]      @relation("FriendsUser")
+  rooms              Room[]            @relation("RoomCreator")
+  roomMembers        RoomMember[]
+  challengesSent     Challenge[]       @relation("Challenger")
+  challengesReceived Challenge[]       @relation("Challenged")
+  challengesWon      Challenge[]       @relation("Winner")
 
   @@map("users")
 }
 
 model Song {
-  id          String   @id @default(cuid())
-  customId    String?  @unique // Custom ID from songs-data.ts (e.g., "best-news-ever-zw")
-  title       String
-  artist      String
-  genre       String
-  difficulty  Difficulty
-  duration    String
-  year        Int?
-  lyrics      Json?    // Array of lyrics with timestamps
-  audioUrl    String?
-  thumbnail   String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String     @id @default(cuid())
+  customId   String?    @unique // Custom ID from songs-data.ts (e.g., "best-news-ever-zw")
+  title      String
+  artist     String
+  genre      String
+  difficulty Difficulty
+  duration   String
+  year       Int?
+  lyrics     Json? // Array of lyrics with timestamps
+  audioUrl   String?
+  thumbnail  String?
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 
   // Relations
-  scores Score[]
+  scores       Score[]
   gameSessions GameSession[]
+  challenges   Challenge[]
 
   @@unique([title, artist])
   @@map("songs")
 }
 
 model Score {
-  id          String   @id @default(cuid())
-  userId      String
-  songId      String
-  totalScore  Int
-  accuracy    Float
-  timing      Float
-  pitch       Float
-  lyrics      Float
-  perfectNotes Int
+  id            String   @id @default(cuid())
+  userId        String
+  songId        String
+  totalScore    Int
+  accuracy      Float
+  timing        Float
+  pitch         Float
+  lyrics        Float
+  perfectNotes  Int
   currentStreak Int
-  maxStreak   Int
-  gameMode    GameMode
-  createdAt   DateTime @default(now())
+  maxStreak     Int
+  gameMode      GameMode
+  createdAt     DateTime @default(now())
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -88,7 +92,7 @@ model Achievement {
   icon        String
   rarity      Rarity
   points      Int
-  criteria    Json     // Achievement criteria
+  criteria    Json // Achievement criteria
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
 
@@ -99,10 +103,10 @@ model Achievement {
 }
 
 model UserAchievement {
-  id            String      @id @default(cuid())
+  id            String   @id @default(cuid())
   userId        String
   achievementId String
-  unlockedAt    DateTime    @default(now())
+  unlockedAt    DateTime @default(now())
 
   // Relations
   user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -113,12 +117,12 @@ model UserAchievement {
 }
 
 model GameSession {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   userId    String
   songId    String
   gameMode  GameMode
   status    GameStatus
-  startedAt DateTime @default(now())
+  startedAt DateTime   @default(now())
   endedAt   DateTime?
   score     Int?
 
@@ -130,27 +134,27 @@ model GameSession {
 }
 
 model Room {
-  id          String   @id @default(cuid())
-  code        String   @unique
+  id          String     @id @default(cuid())
+  code        String     @unique
   name        String?
   creatorId   String
   gameMode    GameMode
   status      RoomStatus @default(WAITING)
-  maxPlayers  Int      @default(8)
+  maxPlayers  Int        @default(8)
   currentSong String?
   startedAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   // Relations
-  creator User        @relation("RoomCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  creator User         @relation("RoomCreator", fields: [creatorId], references: [id], onDelete: Cascade)
   members RoomMember[]
 
   @@map("rooms")
 }
 
 model RoomMember {
-  id       String @id @default(cuid())
+  id       String   @id @default(cuid())
   roomId   String
   userId   String
   joinedAt DateTime @default(now())
@@ -166,12 +170,12 @@ model RoomMember {
 }
 
 model Friendship {
-  id        String   @id @default(cuid())
+  id        String           @id @default(cuid())
   userId    String
   friendId  String
   status    FriendshipStatus @default(PENDING)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
   // Relations
   user   User @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
@@ -182,19 +186,19 @@ model Friendship {
 }
 
 model Tournament {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  theme       String?
-  maxPlayers  Int
-  currentPlayers Int @default(0)
-  rounds      Int
-  status      TournamentStatus @default(UPCOMING)
-  startDate   DateTime
-  endDate     DateTime?
-  prize       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String           @id @default(cuid())
+  name           String
+  description    String?
+  theme          String?
+  maxPlayers     Int
+  currentPlayers Int              @default(0)
+  rounds         Int
+  status         TournamentStatus @default(UPCOMING)
+  startDate      DateTime
+  endDate        DateTime?
+  prize          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   @@map("tournaments")
 }
@@ -242,4 +246,54 @@ enum TournamentStatus {
   ACTIVE
   FINISHED
   CANCELLED
+}
+
+model Challenge {
+  id           String          @id @default(cuid())
+  challengerId String // User who initiated the challenge
+  challengedId String // User being challenged
+  songId       String // Song to battle on
+  status       ChallengeStatus @default(PENDING)
+
+  // Scores (null until completed)
+  challengerScore Int?
+  challengedScore Int?
+
+  // Completion tracking
+  challengerCompletedAt DateTime?
+  challengedCompletedAt DateTime?
+
+  // Winner (determined after both complete or timeout)
+  winnerId String?
+
+  // Timing
+  expiresAt   DateTime? // 24 hours after acceptance (null until accepted)
+  acceptedAt  DateTime?
+  declinedAt  DateTime?
+  completedAt DateTime? // When battle is finished (both done or timeout)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  challenger User  @relation("Challenger", fields: [challengerId], references: [id], onDelete: Cascade)
+  challenged User  @relation("Challenged", fields: [challengedId], references: [id], onDelete: Cascade)
+  song       Song  @relation(fields: [songId], references: [id], onDelete: Cascade)
+  winner     User? @relation("Winner", fields: [winnerId], references: [id], onDelete: SetNull)
+
+  @@index([challengerId])
+  @@index([challengedId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("challenges")
+}
+
+enum ChallengeStatus {
+  PENDING // Challenge sent, waiting for response
+  ACCEPTED // Challenge accepted, players can complete song
+  DECLINED // Challenge declined
+  IN_PROGRESS // At least one player has started/completed
+  COMPLETED // Battle finished, winner determined
+  EXPIRED // Time limit expired
+  CANCELLED // Challenge cancelled by challenger
 }
