@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Music, Settings, Trophy, Users } from "lucide-react";
+import { ArrowLeft, Music, Settings, Trophy, Users, Sword } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,10 @@ export function PageHeader({
   // Hide navigation on gameplay pages
   const isGameplayPage = pathname.startsWith("/gameplay");
   const shouldShowNavigation = isSignedIn && showNavigation && !isGameplayPage;
+
+  // Main navigation pages - don't show page title for these
+  const mainNavPages = ["/songs", "/results", "/friends", "/battles", "/profile"];
+  const isMainNavPage = mainNavPages.includes(pathname);
 
   const handleBackClick = () => {
     // Check if there's history to go back to
@@ -108,6 +112,21 @@ export function PageHeader({
               </Button>
             </Link>
 
+            <Link href="/battles">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`flex items-center space-x-2 ${
+                  pathname === "/battles"
+                    ? "text-purple-600 dark:text-purple-400"
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
+              >
+                <Sword className="h-4 w-4" />
+                <span>Battles</span>
+              </Button>
+            </Link>
+
             <Link href="/profile">
               <Button
                 variant="ghost"
@@ -125,8 +144,8 @@ export function PageHeader({
           </div>
         )}
 
-        {/* Page Title - Only show if different from Karaoke Battle */}
-        {title !== "Karaoke Battle" && (
+        {/* Page Title - Only show if different from Karaoke Battle and not a main nav page */}
+        {title !== "Karaoke Battle" && !isMainNavPage && (
           <div className="text-gray-900 dark:text-white">
             <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300">
               {title}

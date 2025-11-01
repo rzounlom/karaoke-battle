@@ -37,21 +37,11 @@ export async function GET(
       );
     }
 
-    // Find the challenge
+    // Find the challenge with participants
     const challenge = await prisma.challenge.findUnique({
       where: { id: challengeId },
       include: {
         challenger: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            avatar: true,
-            level: true,
-          },
-        },
-        challenged: {
           select: {
             id: true,
             username: true,
@@ -80,6 +70,20 @@ export async function GET(
             avatar: true,
           },
         },
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+                level: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -91,9 +95,9 @@ export async function GET(
     }
 
     // Check if user is a participant
-    const isParticipant =
-      challenge.challengerId === dbUser.id ||
-      challenge.challengedId === dbUser.id;
+    const isParticipant = challenge.participants.some(
+      (p) => p.userId === dbUser.id
+    );
 
     if (!isParticipant) {
       return NextResponse.json(
@@ -110,20 +114,23 @@ export async function GET(
       challenge: {
         id: challenge.id,
         challenger: challenge.challenger,
-        challenged: challenge.challenged,
         song: challenge.song,
         status: challenge.status,
-        challengerScore: challenge.challengerScore,
-        challengedScore: challenge.challengedScore,
-        challengerCompletedAt: challenge.challengerCompletedAt,
-        challengedCompletedAt: challenge.challengedCompletedAt,
         winner: challenge.winner,
         expiresAt: challenge.expiresAt,
-        acceptedAt: challenge.acceptedAt,
-        declinedAt: challenge.declinedAt,
         completedAt: challenge.completedAt,
         createdAt: challenge.createdAt,
         updatedAt: challenge.updatedAt,
+        participants: challenge.participants.map((p) => ({
+          id: p.id,
+          userId: p.userId,
+          user: p.user,
+          status: p.status,
+          score: p.score,
+          acceptedAt: p.acceptedAt,
+          declinedAt: p.declinedAt,
+          completedAt: p.completedAt,
+        })),
       },
     });
   } catch (error) {

@@ -87,15 +87,6 @@ export async function POST(
             avatar: true,
           },
         },
-        challenged: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            avatar: true,
-          },
-        },
         song: {
           select: {
             id: true,
@@ -103,6 +94,19 @@ export async function POST(
             title: true,
             artist: true,
             thumbnail: true,
+          },
+        },
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+              },
+            },
           },
         },
       },
@@ -114,9 +118,14 @@ export async function POST(
       challenge: {
         id: updatedChallenge.id,
         challenger: updatedChallenge.challenger,
-        challenged: updatedChallenge.challenged,
         song: updatedChallenge.song,
         status: updatedChallenge.status,
+        participants: updatedChallenge.participants.map((p) => ({
+          id: p.id,
+          userId: p.userId,
+          user: p.user,
+          status: p.status,
+        })),
       },
     });
   } catch (error) {

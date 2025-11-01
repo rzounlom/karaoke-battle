@@ -3,6 +3,8 @@
 import {
   ArrowLeft,
   HelpCircle,
+  Maximize,
+  Minimize,
   Music,
   Pause,
   Play,
@@ -10,10 +12,12 @@ import {
   Square,
   Trophy,
   XCircle,
-  Maximize,
-  Minimize,
 } from "lucide-react";
-import { Suspense, useEffect, useState, useRef, useCallback } from "react";
+import {
+  FullScreenEventDisplay,
+  GameplayEventDisplay,
+} from "@/components/gameplay-event-display";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -21,15 +25,12 @@ import { LyricsDisplayWithFrequency } from "@/components/lyrics-display-with-fre
 import { ProtectedRoute } from "@/components/protected-route";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
-import {
-  GameplayEventDisplay,
-  FullScreenEventDisplay,
-} from "@/components/gameplay-event-display";
-import { useGameplayEvents } from "@/hooks/use-gameplay-events";
 import { debugLog } from "@/lib/debug";
 import { formatTime } from "@/lib/utils";
-import { getSongById } from "@/lib/songs-data";
 import { getLevelTitle } from "@/lib/experience";
+import { getSongById } from "@/lib/songs-data";
+import { toast } from "@/lib/toast";
+import { useGameplayEvents } from "@/hooks/use-gameplay-events";
 import { useSearchParams } from "next/navigation";
 import { useSimpleKaraoke } from "@/hooks/use-simple-karaoke";
 
@@ -44,7 +45,6 @@ function GameplayContent() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showScoringModal, setShowScoringModal] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
-  const [sessionConfirmed, setSessionConfirmed] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
   // Score decay system
@@ -157,21 +157,21 @@ function GameplayContent() {
         callbackScore: finalScore,
         callbackAccuracy: totalAccuracy,
         callbackTiming: totalTiming,
-        
+
         // Hook state values (might be stale, but shown for comparison)
         hookScore: score,
         hookAccuracy: accuracy,
         hookTiming: timing,
         hookScoringEvents: scoringEvents,
-        
+
         // Gameplay events
         gameplayBonusPoints: stats.totalBonusPoints,
         gameplayStats: stats,
-        
+
         // Decay
         decayAmount: decayAmount,
         isDecaying: isDecaying,
-        
+
         // Song info
         songId: currentSong?.id,
         songTitle: currentSong?.title,
@@ -205,9 +205,6 @@ function GameplayContent() {
       // Set reason as completed
       setGameEndReason("completed");
 
-      // Mark that user has completed the session naturally
-      setSessionConfirmed(true);
-
       // Capture final scores and show results when song completes naturally
       setFinalScore({
         totalScore: totalScoreWithBonuses,
@@ -240,7 +237,7 @@ function GameplayContent() {
             if (data.leveledUp) {
               debugLog("🎉 Level up! New level:", data.newLevel);
             }
-            
+
             // Refresh leaderboard after completing song
             fetchLeaderboard();
           }
@@ -328,7 +325,7 @@ function GameplayContent() {
     try {
       setLeaderboardLoading(true);
       const response = await fetch(`/api/songs/${currentSong.id}/leaderboard`);
-      
+
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -356,10 +353,10 @@ function GameplayContent() {
 
     if (currentSong) {
       debugLog("🎵 Loading song:", currentSong);
-      
+
       // Fetch leaderboard data
       fetchLeaderboard();
-      
+
       setTimeout(async () => {
         try {
           // Additional validation before loading
@@ -408,26 +405,30 @@ function GameplayContent() {
         await resumeGame();
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        alert(`Failed to resume gameplay: ${errorMsg}`);
+        toast.error("Failed to resume gameplay", errorMsg);
       }
     } else {
       // If stopped, start
       if (!microphoneReady) {
-        alert("Microphone is not ready. Please wait a moment and try again.");
+        toast.warning(
+          "Microphone not ready",
+          "Please wait a moment and try again."
+        );
         return;
       }
 
       const audioPlayer = getAudioPlayer();
       if (!audioPlayer) {
-        alert("Audio player not initialized. Please refresh the page.");
+        toast.error("Audio player not initialized", "Please refresh the page.");
         return;
       }
 
       if (!audioPlayer.isReadyToPlay()) {
         const audioState = audioPlayer.getAudioState();
         console.log("Audio not ready:", audioState);
-        alert(
-          `Audio is not ready to play. Ready state: ${audioState.readyState}, Duration: ${audioState.duration}. Please wait a moment and try again.`
+        toast.warning(
+          "Audio not ready",
+          `Ready state: ${audioState.readyState}, Duration: ${audioState.duration}. Please wait a moment and try again.`
         );
         return;
       }
@@ -436,7 +437,7 @@ function GameplayContent() {
         await startGame();
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        alert(`Failed to start gameplay: ${errorMsg}`);
+        toast.error("Failed to start gameplay", errorMsg);
       }
     }
   };
@@ -446,9 +447,6 @@ function GameplayContent() {
   };
 
   const confirmStopGame = async () => {
-    // Mark that user has explicitly confirmed they want to end the session
-    setSessionConfirmed(true);
-
     // Stop the game and calculate final score
     const audioPlayer = getAudioPlayer();
     if (audioPlayer) {
@@ -530,7 +528,7 @@ function GameplayContent() {
           if (data.leveledUp) {
             console.log("🎉 Level up! New level:", data.newLevel);
           }
-          
+
           // Refresh leaderboard after completing song
           fetchLeaderboard();
         }
@@ -568,7 +566,6 @@ function GameplayContent() {
 
     // Reset local state
     setGameEndReason("completed");
-    setSessionConfirmed(false);
     setFinalScore({
       totalScore: 0,
       accuracy: 0,
@@ -612,21 +609,25 @@ function GameplayContent() {
     } else {
       // If stopped, start
       if (!microphoneReady) {
-        alert("Microphone is not ready. Please wait a moment and try again.");
+        toast.warning(
+          "Microphone not ready",
+          "Please wait a moment and try again."
+        );
         return;
       }
 
       const audioPlayer = getAudioPlayer();
       if (!audioPlayer) {
-        alert("Audio player not initialized. Please refresh the page.");
+        toast.error("Audio player not initialized", "Please refresh the page.");
         return;
       }
 
       if (!audioPlayer.isReadyToPlay()) {
         const audioState = audioPlayer.getAudioState();
         console.log("Audio not ready:", audioState);
-        alert(
-          `Audio is not ready to play. Ready state: ${audioState.readyState}, Duration: ${audioState.duration}. Please wait a moment and try again.`
+        toast.warning(
+          "Audio not ready",
+          `Ready state: ${audioState.readyState}, Duration: ${audioState.duration}. Please wait a moment and try again.`
         );
         return;
       }
@@ -635,7 +636,7 @@ function GameplayContent() {
         startGame();
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        alert(`Failed to start gameplay: ${errorMsg}`);
+        toast.error("Failed to start gameplay", errorMsg);
       }
     }
   };
@@ -1335,7 +1336,8 @@ function GameplayContent() {
                         No high score yet!
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Be the first to set the bar and claim your spot on the leaderboard! 🏆
+                        Be the first to set the bar and claim your spot on the
+                        leaderboard! 🏆
                       </div>
                     </div>
                   ) : (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { ChallengeStatus } from "@prisma/client";
+// import { ChallengeStatus } from "@prisma/client";
 import { addExperience } from "@/lib/experience";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
@@ -49,14 +49,18 @@ export async function POST(
       );
     }
 
-    // Find the challenge
+    // Find the challenge with participants
     const challenge = await prisma.challenge.findUnique({
       where: { id: challengeId },
       include: {
         challenger: true,
-        challenged: true,
         song: true,
         winner: true,
+        participants: {
+          include: {
+            user: true,
+          },
+        },
       },
     });
 
@@ -67,17 +71,29 @@ export async function POST(
       );
     }
 
-    // Validate user is a participant
-    const isChallenger = challenge.challengerId === dbUser.id;
-    const isChallenged = challenge.challengedId === dbUser.id;
+    // Find participant record for current user
+    const participant = challenge.participants.find(
+      (p) => p.userId === dbUser.id
+    );
 
-    if (!isChallenger && !isChallenged) {
+    if (!participant) {
       return NextResponse.json(
         {
           success: false,
           message: "You are not a participant in this challenge",
         },
         { status: 403 }
+      );
+    }
+
+    // Validate participant has accepted
+    if (participant.status !== "ACCEPTED") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You must accept the challenge before submitting a score",
+        },
+        { status: 400 }
       );
     }
 
@@ -94,7 +110,6 @@ export async function POST(
 
     if (
       challenge.status === "COMPLETED" ||
-      challenge.status === "DECLINED" ||
       challenge.status === "EXPIRED" ||
       challenge.status === "CANCELLED"
     ) {
@@ -108,17 +123,7 @@ export async function POST(
     }
 
     // Check if user already submitted a score
-    if (isChallenger && challenge.challengerScore !== null) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "You have already submitted your score for this challenge",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (isChallenged && challenge.challengedScore !== null) {
+    if (participant.score !== null) {
       return NextResponse.json(
         {
           success: false,
@@ -130,59 +135,76 @@ export async function POST(
 
     // Check if challenge expired
     if (challenge.expiresAt && new Date() > challenge.expiresAt) {
-      // Challenge expired - determine winner
-      const winnerId =
-        challenge.challengerScore !== null && challenge.challengedScore !== null
-          ? challenge.challengerScore > challenge.challengedScore
-            ? challenge.challengerId
-            : challenge.challengedId
-          : challenge.challengerScore !== null
-          ? challenge.challengerId
-          : challenge.challengedScore !== null
-          ? challenge.challengedId
-          : null;
+      // Challenge expired - determine winner from participants who completed
+      const completedParticipants = challenge.participants.filter(
+        (p) => p.status === "ACCEPTED" && p.score !== null
+      );
 
-      if (winnerId) {
-        // Award points to winner
-        const winner = await prisma.user.findUnique({
-          where: { id: winnerId },
-        });
-
-        if (winner) {
-          const experienceResult = addExperience(
-            winner.level,
-            winner.experience,
-            15000 // Challenge win bonus
-          );
-
-          await prisma.user.update({
-            where: { id: winnerId },
-            data: {
-              level: experienceResult.newLevel,
-              experience: experienceResult.newExperience,
-            },
-          });
-        }
+      let winnerId: string | null = null;
+      if (completedParticipants.length > 0) {
+        // Find participant with highest score
+        const winnerParticipant = completedParticipants.reduce((prev, curr) =>
+          (curr.score || 0) > (prev.score || 0) ? curr : prev
+        );
+        winnerId = winnerParticipant.userId;
+      } else if (participant) {
+        // If submitting after expiration and no one else completed, this user wins by default
+        winnerId = dbUser.id;
       }
 
-      const updatedChallenge = await prisma.challenge.update({
-        where: { id: challengeId },
+      // Update participant score even if expired
+      await prisma.challengeParticipant.update({
+        where: { id: participant.id },
         data: {
-          status: "EXPIRED",
-          winnerId: winnerId,
+          score: Math.round(totalScore),
           completedAt: new Date(),
         },
+      });
+
+      if (winnerId && !challenge.winnerId) {
+        // Award points to winner: 15,000 * (number of other participants who completed)
+        const completedCount = challenge.participants.filter(
+          (p) => p.status === "ACCEPTED" && p.score !== null
+        ).length;
+        const otherParticipantsCount = Math.max(0, completedCount - 1);
+        const pointsAwarded = 15000 * otherParticipantsCount;
+
+        if (pointsAwarded > 0) {
+          const winner = await prisma.user.findUnique({
+            where: { id: winnerId },
+          });
+
+          if (winner) {
+            const experienceResult = addExperience(
+              winner.level,
+              winner.experience,
+              pointsAwarded
+            );
+
+            await prisma.user.update({
+              where: { id: winnerId },
+              data: {
+                level: experienceResult.newLevel,
+                experience: experienceResult.newExperience,
+              },
+            });
+          }
+        }
+
+        await prisma.challenge.update({
+          where: { id: challengeId },
+          data: {
+            status: "EXPIRED",
+            winnerId: winnerId,
+            completedAt: new Date(),
+          },
+        });
+      }
+
+      const updatedChallenge = await prisma.challenge.findUnique({
+        where: { id: challengeId },
         include: {
           challenger: {
-            select: {
-              id: true,
-              username: true,
-              firstName: true,
-              lastName: true,
-              avatar: true,
-            },
-          },
-          challenged: {
             select: {
               id: true,
               username: true,
@@ -209,6 +231,19 @@ export async function POST(
               avatar: true,
             },
           },
+          participants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  firstName: true,
+                  lastName: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -220,89 +255,100 @@ export async function POST(
       });
     }
 
-    // Update challenge with user's score
-    const updateData: {
-      challengerScore?: number;
-      challengedScore?: number;
-      challengerCompletedAt?: Date;
-      challengedCompletedAt?: Date;
-      completedAt?: Date;
-      status: ChallengeStatus;
-      winnerId?: string | null;
-    } = {
-      status: "IN_PROGRESS",
-    };
+    // Update participant with score
+    await prisma.challengeParticipant.update({
+      where: { id: participant.id },
+      data: {
+        score: Math.round(totalScore),
+        completedAt: new Date(),
+      },
+    });
 
-    if (isChallenger) {
-      updateData.challengerScore = Math.round(totalScore);
-      updateData.challengerCompletedAt = new Date();
-    } else {
-      updateData.challengedScore = Math.round(totalScore);
-      updateData.challengedCompletedAt = new Date();
-    }
+    // Get all accepted participants
+    const acceptedParticipants = challenge.participants.filter(
+      (p) => p.status === "ACCEPTED"
+    );
 
-    // Check if both players have completed
-    const challengerCompleted =
-      challenge.challengerScore !== null || isChallenger;
-    const challengedCompleted =
-      challenge.challengedScore !== null || isChallenged;
+    // Get updated participant data to check if all have completed
+    const updatedParticipants = await prisma.challengeParticipant.findMany({
+      where: {
+        challengeId: challengeId,
+        status: "ACCEPTED",
+      },
+    });
+
+    // Check if all accepted participants have submitted scores
+    const allCompleted = acceptedParticipants.every((p) => {
+      const updated = updatedParticipants.find((up) => up.id === p.id);
+      return updated?.score !== null;
+    });
 
     let winnerId: string | null = null;
+    let pointsAwarded = 0;
 
-    if (challengerCompleted && challengedCompleted) {
-      // Both completed - determine winner
-      const finalChallengerScore = isChallenger
-        ? Math.round(totalScore)
-        : challenge.challengerScore || 0;
-      const finalChallengedScore = isChallenged
-        ? Math.round(totalScore)
-        : challenge.challengedScore || 0;
+    if (allCompleted) {
+      // All completed - determine winner (highest score)
+      const completedWithScores = updatedParticipants.filter(
+        (p) => p.score !== null
+      );
 
-      winnerId =
-        finalChallengerScore > finalChallengedScore
-          ? challenge.challengerId
-          : finalChallengedScore > finalChallengerScore
-          ? challenge.challengedId
-          : null; // Tie - no winner
+      if (completedWithScores.length > 0) {
+        // Find participant with highest score
+        const winnerParticipant = completedWithScores.reduce((prev, curr) =>
+          (curr.score || 0) > (prev.score || 0) ? curr : prev
+        );
+        winnerId = winnerParticipant.userId;
 
-      updateData.status = "COMPLETED";
-      updateData.completedAt = new Date();
-      updateData.winnerId = winnerId;
+        // Calculate points: 15,000 * (number of other participants who completed)
+        const otherParticipantsCount = Math.max(
+          0,
+          completedWithScores.length - 1
+        );
+        pointsAwarded = 15000 * otherParticipantsCount;
 
-      if (winnerId) {
-        // Award 15,000 points to winner
-        const winner = await prisma.user.findUnique({
-          where: { id: winnerId },
-        });
-
-        if (winner) {
-          const experienceResult = addExperience(
-            winner.level,
-            winner.experience,
-            15000 // Challenge win bonus
-          );
-
-          await prisma.user.update({
+        if (pointsAwarded > 0 && winnerId) {
+          // Award points to winner
+          const winner = await prisma.user.findUnique({
             where: { id: winnerId },
-            data: {
-              level: experienceResult.newLevel,
-              experience: experienceResult.newExperience,
-            },
           });
+
+          if (winner) {
+            const experienceResult = addExperience(
+              winner.level,
+              winner.experience,
+              pointsAwarded
+            );
+
+            await prisma.user.update({
+              where: { id: winnerId },
+              data: {
+                level: experienceResult.newLevel,
+                experience: experienceResult.newExperience,
+              },
+            });
+          }
         }
       }
 
-      // Update challenge with all completion data
+      // Update challenge as completed
       await prisma.challenge.update({
         where: { id: challengeId },
-        data: updateData,
+        data: {
+          status: "COMPLETED",
+          completedAt: new Date(),
+          winnerId: winnerId,
+        },
       });
     } else {
-      // Only one completed - update status
-      await prisma.challenge.update({
-        where: { id: challengeId },
-        data: updateData,
-      });
+      // Not all completed - update status to IN_PROGRESS if not already
+      if (challenge.status === "ACCEPTED") {
+        await prisma.challenge.update({
+          where: { id: challengeId },
+          data: {
+            status: "IN_PROGRESS",
+          },
+        });
+      }
     }
 
     // Fetch updated challenge
@@ -310,16 +356,6 @@ export async function POST(
       where: { id: challengeId },
       include: {
         challenger: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            avatar: true,
-            level: true,
-          },
-        },
-        challenged: {
           select: {
             id: true,
             username: true,
@@ -347,22 +383,36 @@ export async function POST(
             avatar: true,
           },
         },
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+                level: true,
+              },
+            },
+          },
+        },
       },
     });
 
-    const bothCompleted = challengerCompleted && challengedCompleted;
     const isWinner = winnerId === dbUser.id;
 
     return NextResponse.json({
       success: true,
-      message: bothCompleted
+      message: allCompleted
         ? isWinner
-          ? "Congratulations! You won the challenge and earned 15,000 points!"
+          ? `Congratulations! You won the challenge and earned ${pointsAwarded.toLocaleString()} points!`
           : "Challenge completed! Better luck next time!"
-        : "Score submitted! Waiting for your opponent to complete.",
+        : "Score submitted! Waiting for other participants to complete.",
       challenge: updatedChallenge,
-      bothCompleted,
+      allCompleted,
       winner: isWinner,
+      pointsAwarded: isWinner ? pointsAwarded : 0,
     });
   } catch (error) {
     console.error("Error submitting challenge score:", error);

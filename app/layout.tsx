@@ -7,6 +7,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "./providers/theme-provider";
 import { UserSync } from "@/components/user-sync";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -41,6 +42,12 @@ export default function RootLayout({
             <UserSync />
             <AuthRedirectHandler />
             {children}
+            <Toaster
+              position="top-right"
+              richColors
+              closeButton
+              expand={true}
+            />
           </ThemeProvider>
         </body>
       </html>

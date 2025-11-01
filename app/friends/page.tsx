@@ -2,9 +2,11 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, Clock, Search, UserPlus, Users, X } from "lucide-react";
+import { Check, Clock, Search, UserPlus, Users, X, Sword } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
+import { ChallengeModal } from "@/components/challenge-modal";
+import { toast } from "@/lib/toast";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +54,13 @@ export default function FriendsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [activeTab, setActiveTab] = useState("friends");
+  const [challengeModalOpen, setChallengeModalOpen] = useState(false);
+  const [selectedFriends, setSelectedFriends] = useState<Set<string>>(new Set());
+  const [friendsForChallenge, setFriendsForChallenge] = useState<Array<{
+    id: string;
+    name: string;
+    avatar: string | null;
+  }>>([]);
 
   // Load friends data
   useEffect(() => {
@@ -125,11 +134,11 @@ export default function FriendsPage() {
         searchUsers(searchQuery);
         loadFriends(); // Refresh friends list
       } else {
-        alert(data.message);
+        toast.error(data.message);
       }
     } catch (error) {
       console.error("Error sending friend request:", error);
-      alert("Failed to send friend request");
+      toast.error("Failed to send friend request");
     }
   };
 
@@ -147,14 +156,14 @@ export default function FriendsPage() {
       const data = await response.json();
 
       if (data.success) {
-        alert(data.message);
+        toast.success(data.message);
         loadFriends(); // Refresh friends list
       } else {
-        alert(data.message);
+        toast.error(data.message);
       }
     } catch (error) {
       console.error("Error responding to friend request:", error);
-      alert("Failed to respond to friend request");
+      toast.error("Failed to respond to friend request");
     }
   };
 
@@ -281,33 +290,119 @@ export default function FriendsPage() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {friends?.acceptedFriends?.map((friend) => (
-                  <Card key={friend.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center space-x-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={friend.avatar} />
-                          <AvatarFallback>
-                            {friend.username?.charAt(0) ||
-                              friend.firstName?.charAt(0) ||
-                              "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                            {friend.username ||
-                              `${friend.firstName} ${friend.lastName}`.trim()}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Level {friend.level} • {friend.experience} XP
-                          </p>
-                        </div>
-                        {getStatusBadge(friend.status)}
+              <div className="space-y-4">
+                {selectedFriends.size > 0 && (
+                  <Card className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">
+                          {selectedFriends.size} friend{selectedFriends.size > 1 ? "s" : ""} selected
+                        </p>
+                        <p className="text-sm opacity-90">
+                          Choose a song to challenge them to
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            // Build friends array from selected IDs
+                            const selectedFriendsList = friends?.acceptedFriends
+                              ?.filter((f) => selectedFriends.has(f.friendId))
+                              .map((f) => ({
+                                id: f.friendId,
+                                name: f.username || `${f.firstName} ${f.lastName}`.trim(),
+                                avatar: f.avatar,
+                              })) || [];
+                            
+                            if (selectedFriendsList.length > 0) {
+                              setFriendsForChallenge(selectedFriendsList);
+                              setChallengeModalOpen(true);
+                            }
+                          }}
+                        >
+                          <Sword className="h-4 w-4 mr-2" />
+                          Challenge Selected
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedFriends(new Set())}
+                          className="text-white hover:bg-white/20"
+                        >
+                          Clear
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                )}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {friends?.acceptedFriends?.map((friend) => {
+                  const friendDisplayName =
+                    friend.username ||
+                    `${friend.firstName} ${friend.lastName}`.trim();
+                  return (
+                    <Card key={friend.id}>
+                      <CardContent className="p-4">
+                        <div className="flex items-center space-x-3 mb-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={friend.avatar} />
+                            <AvatarFallback>
+                              {friend.username?.charAt(0) ||
+                                friend.firstName?.charAt(0) ||
+                                "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {friendDisplayName}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Level {friend.level} • {friend.experience} XP
+                            </p>
+                          </div>
+                          {getStatusBadge(friend.status)}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedFriends.has(friend.friendId)}
+                            onChange={(e) => {
+                              const newSelected = new Set(selectedFriends);
+                              if (e.target.checked) {
+                                newSelected.add(friend.friendId);
+                              } else {
+                                newSelected.delete(friend.friendId);
+                              }
+                              setSelectedFriends(newSelected);
+                            }}
+                            className="h-4 w-4 rounded border-gray-300 text-purple-500 focus:ring-purple-500"
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              // Add this friend to selected and open modal
+                              const newSelected = new Set([friend.friendId]);
+                              setSelectedFriends(newSelected);
+                              setFriendsForChallenge([{
+                                id: friend.friendId,
+                                name: friendDisplayName,
+                                avatar: friend.avatar,
+                              }]);
+                              setChallengeModalOpen(true);
+                            }}
+                            className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                          >
+                            <Sword className="h-4 w-4 mr-2" />
+                            Challenge
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+                </div>
               </div>
             )}
           </TabsContent>
@@ -522,6 +617,19 @@ export default function FriendsPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Challenge Modal */}
+      {friendsForChallenge.length > 0 && (
+        <ChallengeModal
+          isOpen={challengeModalOpen}
+          onClose={() => {
+            setChallengeModalOpen(false);
+            setFriendsForChallenge([]);
+            setSelectedFriends(new Set());
+          }}
+          friends={friendsForChallenge}
+        />
+      )}
     </div>
   );
 }

@@ -32,22 +32,22 @@ export async function GET(req: NextRequest) {
     const statusFilter = searchParams.get("status");
 
     // Build where clause for challenges
+    // Find challenges where user is a participant
     const where: {
-      OR: Array<
-        | {
-            challengerId: string;
-            challengedId?: never;
-          }
-        | {
-            challengedId: string;
-            challengerId?: never;
-          }
-      >;
+      participants: {
+        some: {
+          userId: string;
+        };
+      };
       status?: {
         in: ChallengeStatus[];
       };
     } = {
-      OR: [{ challengerId: dbUser.id }, { challengedId: dbUser.id }],
+      participants: {
+        some: {
+          userId: dbUser.id,
+        },
+      },
     };
 
     // Apply status filter if provided
@@ -77,16 +77,6 @@ export async function GET(req: NextRequest) {
             level: true,
           },
         },
-        challenged: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            avatar: true,
-            level: true,
-          },
-        },
         song: {
           select: {
             id: true,
@@ -106,38 +96,61 @@ export async function GET(req: NextRequest) {
             avatar: true,
           },
         },
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+                level: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
     });
 
+    // Get user's participant status for each challenge
+    const challengesWithUserStatus = challenges.map((challenge) => {
+      const userParticipant = challenge.participants.find(
+        (p) => p.userId === dbUser.id
+      );
+      const isChallenger = challenge.challengerId === dbUser.id;
+      const userParticipantStatus = userParticipant?.status || "PENDING";
+
+      return {
+        ...challenge,
+        userParticipantStatus,
+        isChallenger,
+      };
+    });
+
     // Separate challenges into different categories
-    const pendingReceived = challenges.filter(
-      (c) => c.challengedId === dbUser.id && c.status === "PENDING"
+    const pendingReceived = challengesWithUserStatus.filter(
+      (c) => !c.isChallenger && c.userParticipantStatus === "PENDING" && c.status === "PENDING"
     );
-    const pendingSent = challenges.filter(
-      (c) => c.challengerId === dbUser.id && c.status === "PENDING"
+    const pendingSent = challengesWithUserStatus.filter(
+      (c) => c.isChallenger && c.status === "PENDING"
     );
-    const active = challenges.filter(
+    const active = challengesWithUserStatus.filter(
       (c) =>
-        (c.challengerId === dbUser.id || c.challengedId === dbUser.id) &&
-        (c.status === "ACCEPTED" || c.status === "IN_PROGRESS")
+        (c.status === "ACCEPTED" || c.status === "IN_PROGRESS") &&
+        c.userParticipantStatus === "ACCEPTED"
     );
-    const completed = challenges.filter(
-      (c) =>
-        (c.challengerId === dbUser.id || c.challengedId === dbUser.id) &&
-        c.status === "COMPLETED"
+    const completed = challengesWithUserStatus.filter(
+      (c) => c.status === "COMPLETED"
     );
-    const declined = challenges.filter(
-      (c) =>
-        (c.challengerId === dbUser.id || c.challengedId === dbUser.id) &&
-        c.status === "DECLINED"
+    const declined = challengesWithUserStatus.filter(
+      (c) => c.userParticipantStatus === "DECLINED"
     );
-    const expired = challenges.filter(
-      (c) =>
-        (c.challengerId === dbUser.id || c.challengedId === dbUser.id) &&
-        c.status === "EXPIRED"
+    const expired = challengesWithUserStatus.filter(
+      (c) => c.status === "EXPIRED"
     );
 
     return NextResponse.json({
@@ -145,20 +158,23 @@ export async function GET(req: NextRequest) {
       challenges: challenges.map((c) => ({
         id: c.id,
         challenger: c.challenger,
-        challenged: c.challenged,
         song: c.song,
         status: c.status,
-        challengerScore: c.challengerScore,
-        challengedScore: c.challengedScore,
-        challengerCompletedAt: c.challengerCompletedAt,
-        challengedCompletedAt: c.challengedCompletedAt,
         winner: c.winner,
         expiresAt: c.expiresAt,
-        acceptedAt: c.acceptedAt,
-        declinedAt: c.declinedAt,
         completedAt: c.completedAt,
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
+        participants: c.participants.map((p) => ({
+          id: p.id,
+          userId: p.userId,
+          user: p.user,
+          status: p.status,
+          score: p.score,
+          acceptedAt: p.acceptedAt,
+          declinedAt: p.declinedAt,
+          completedAt: p.completedAt,
+        })),
       })),
       pendingReceived,
       pendingSent,

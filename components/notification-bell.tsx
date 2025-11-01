@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useFriendRequestNotifications } from "@/hooks/use-friend-request-notifications";
 import { useChallengeNotifications } from "@/hooks/use-challenge-notifications";
 import { useState, useEffect, useRef } from "react";
+import { toast } from "@/lib/toast";
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
@@ -51,12 +52,13 @@ export function NotificationBell() {
         loadFriendNotifications();
         // Close the notification dropdown
         setIsOpen(false);
+        toast.success(data.message || "Friend request processed successfully");
       } else {
-        alert(data.message);
+        toast.error(data.message);
       }
     } catch (error) {
       console.error("Error responding to friend request:", error);
-      alert("Failed to respond to friend request");
+      toast.error("Failed to respond to friend request");
     }
   };
 
@@ -77,12 +79,14 @@ export function NotificationBell() {
         loadChallengeNotifications();
         // Close the notification dropdown
         setIsOpen(false);
+        const actionText = action === "accept" ? "accepted" : "declined";
+        toast.success(`Challenge ${actionText}!`, data.message);
       } else {
-        alert(data.message);
+        toast.error(data.message);
       }
     } catch (error) {
       console.error("Error responding to challenge:", error);
-      alert("Failed to respond to challenge");
+      toast.error("Failed to respond to challenge");
     }
   };
 
@@ -161,7 +165,7 @@ export function NotificationBell() {
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                     Notifications
                   </h3>
-                  <Link href={activeTab === "friends" ? "/friends" : "/challenges"}>
+                  <Link href={activeTab === "friends" ? "/friends" : "/battles"}>
                     <Button variant="ghost" size="sm">
                       View All
                     </Button>
@@ -264,68 +268,102 @@ export function NotificationBell() {
                   challengeNotifications.length === 0 ? (
                     <div className="p-4 text-center text-gray-500 dark:text-gray-400">
                       <Sword className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                      <p>No challenge requests</p>
+                      <p>No battle requests</p>
                     </div>
                   ) : (
                     <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {challengeNotifications.map((notification) => (
-                        <div key={notification.id} className="p-4">
-                          <div className="flex items-start space-x-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={notification.challengerAvatar || undefined} />
-                              <AvatarFallback>
-                                {notification.challengerName.charAt(0)}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-gray-900 dark:text-white">
-                                <span className="font-medium">
-                                  {notification.challengerName}
-                                </span>{" "}
-                                challenged you to battle!
-                              </p>
-                              <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">
-                                {notification.songTitle} by {notification.songArtist}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                {new Date(
-                                  notification.createdAt
-                                ).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <div className="flex space-x-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() =>
-                                  respondToChallenge(
-                                    notification.id,
-                                    "accept"
-                                  )
-                                }
-                                className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
-                                title="Accept Challenge"
-                              >
-                                <Check className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() =>
-                                  respondToChallenge(
-                                    notification.id,
-                                    "decline"
-                                  )
-                                }
-                                className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                title="Decline Challenge"
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
+                      {challengeNotifications.map((notification) => {
+                        const isSent = notification.status === "pending_sent";
+                        // For sent battles, show participants with PENDING status (those being challenged)
+                        // For received battles, we just show the challenger
+                        const participantNames = isSent && notification.participants
+                          ? notification.participants
+                              .filter((p) => p.status === "PENDING")
+                              .map((p) => p.user.username || 
+                                `${p.user.firstName || ""} ${p.user.lastName || ""}`.trim() || 
+                                "Unknown")
+                          : [];
+                        
+                        return (
+                          <div key={notification.id} className="p-4">
+                            <div className="flex items-start space-x-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={notification.challengerAvatar || undefined} />
+                                <AvatarFallback>
+                                  {notification.challengerName.charAt(0)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 min-w-0">
+                                {isSent ? (
+                                  <>
+                                    <p className="text-sm text-gray-900 dark:text-white">
+                                      You challenged{" "}
+                                      <span className="font-medium">
+                                        {participantNames.length > 0 
+                                          ? participantNames.length > 2
+                                            ? `${participantNames.slice(0, 2).join(", ")} and ${participantNames.length - 2} more`
+                                            : participantNames.join(" and ")
+                                          : "friends"}
+                                      </span>{" "}
+                                      to battle!
+                                    </p>
+                                    <Badge variant="outline" className="mt-1 text-xs">
+                                      Pending
+                                    </Badge>
+                                  </>
+                                ) : (
+                                  <p className="text-sm text-gray-900 dark:text-white">
+                                    <span className="font-medium">
+                                      {notification.challengerName}
+                                    </span>{" "}
+                                    challenged you to battle!
+                                  </p>
+                                )}
+                                <p className="text-xs text-gray-600 dark:text-gray-400 font-medium mt-1">
+                                  {notification.songTitle} by {notification.songArtist}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(
+                                    notification.createdAt
+                                  ).toLocaleDateString()}
+                                </p>
+                              </div>
+                              {!isSent && (
+                                <div className="flex space-x-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() =>
+                                      respondToChallenge(
+                                        notification.id,
+                                        "accept"
+                                      )
+                                    }
+                                    className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20"
+                                    title="Accept Battle"
+                                  >
+                                    <Check className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() =>
+                                      respondToChallenge(
+                                        notification.id,
+                                        "decline"
+                                      )
+                                    }
+                                    className="h-6 w-6 p-0 text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                    title="Decline Battle"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )
                 )}

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { challengeId: string } }
+  { params }: { params: Promise<{ challengeId: string }> }
 ) {
   try {
     const user = await currentUser();
@@ -38,7 +38,7 @@ export async function POST(
       );
     }
 
-    // Find the challenge
+    // Find the challenge with participants
     const challenge = await prisma.challenge.findUnique({
       where: { id: challengeId },
       include: {
@@ -51,15 +51,6 @@ export async function POST(
             avatar: true,
           },
         },
-        challenged: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            avatar: true,
-          },
-        },
         song: {
           select: {
             id: true,
@@ -67,6 +58,19 @@ export async function POST(
             title: true,
             artist: true,
             thumbnail: true,
+          },
+        },
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+              },
+            },
           },
         },
       },
@@ -79,90 +83,174 @@ export async function POST(
       );
     }
 
-    // Check if the current user is the challenged user
-    if (challenge.challengedId !== dbUser.id) {
+    // Find the participant record for current user
+    const participant = challenge.participants.find(
+      (p) => p.userId === dbUser.id
+    );
+
+    if (!participant) {
       return NextResponse.json(
         {
           success: false,
-          message: "You can only accept challenges sent to you",
+          message: "You are not a participant in this challenge",
         },
         { status: 403 }
       );
     }
 
-    // Check if the challenge is still pending
-    if (challenge.status !== "PENDING") {
+    // Check if already accepted
+    if (participant.status === "ACCEPTED") {
       return NextResponse.json(
         {
           success: false,
-          message: "This challenge has already been responded to",
+          message: "You have already accepted this challenge",
         },
         { status: 400 }
       );
     }
 
-    // Calculate expiration time (24 hours from now)
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 24);
+    // Check if already declined
+    if (participant.status === "DECLINED") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You have already declined this challenge",
+        },
+        { status: 400 }
+      );
+    }
 
-    // Update the challenge status
-    const updatedChallenge = await prisma.challenge.update({
-      where: { id: challengeId },
+    // Check if challenge is cancelled
+    if (challenge.status === "CANCELLED") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "This challenge has been cancelled",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Update participant status to ACCEPTED
+    await prisma.challengeParticipant.update({
+      where: { id: participant.id },
       data: {
         status: "ACCEPTED",
         acceptedAt: new Date(),
-        expiresAt: expiresAt,
-      },
-      include: {
-        challenger: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            avatar: true,
-          },
-        },
-        challenged: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            avatar: true,
-          },
-        },
-        song: {
-          select: {
-            id: true,
-            customId: true,
-            title: true,
-            artist: true,
-            thumbnail: true,
-          },
-        },
       },
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const challengerName =
-      challenge.challenger.username ||
-      `${challenge.challenger.firstName || ""} ${
-        challenge.challenger.lastName || ""
-      }`.trim() ||
-      "Unknown User";
+    // Check if this is the first acceptance (besides challenger who is auto-accepted)
+    // If challenge is still PENDING and this is first acceptance, activate the challenge
+    const acceptedParticipants = challenge.participants.filter(
+      (p) => p.status === "ACCEPTED"
+    );
+
+    let updatedChallenge;
+    if (challenge.status === "PENDING" && acceptedParticipants.length === 1) {
+      // This is the first acceptance - activate challenge
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24);
+
+      updatedChallenge = await prisma.challenge.update({
+        where: { id: challengeId },
+        data: {
+          status: "ACCEPTED",
+          expiresAt: expiresAt,
+        },
+        include: {
+          challenger: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+            },
+          },
+          song: {
+            select: {
+              id: true,
+              customId: true,
+              title: true,
+              artist: true,
+              thumbnail: true,
+            },
+          },
+          participants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  firstName: true,
+                  lastName: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    } else {
+      // Challenge already active or others accepted, just fetch updated data
+      updatedChallenge = await prisma.challenge.findUnique({
+        where: { id: challengeId },
+        include: {
+          challenger: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+            },
+          },
+          song: {
+            select: {
+              id: true,
+              customId: true,
+              title: true,
+              artist: true,
+              thumbnail: true,
+            },
+          },
+          participants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  firstName: true,
+                  lastName: true,
+                  avatar: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,
       message: `Challenge accepted! You have 24 hours to complete "${challenge.song.title}"`,
       challenge: {
-        id: updatedChallenge.id,
-        challenger: updatedChallenge.challenger,
-        challenged: updatedChallenge.challenged,
-        song: updatedChallenge.song,
-        status: updatedChallenge.status,
-        acceptedAt: updatedChallenge.acceptedAt,
-        expiresAt: updatedChallenge.expiresAt,
+        id: updatedChallenge!.id,
+        challenger: updatedChallenge!.challenger,
+        song: updatedChallenge!.song,
+        status: updatedChallenge!.status,
+        expiresAt: updatedChallenge!.expiresAt,
+        participants: updatedChallenge!.participants.map((p) => ({
+          id: p.id,
+          userId: p.userId,
+          user: p.user,
+          status: p.status,
+          score: p.score,
+          acceptedAt: p.acceptedAt,
+          declinedAt: p.declinedAt,
+          completedAt: p.completedAt,
+        })),
       },
     });
   } catch (error) {

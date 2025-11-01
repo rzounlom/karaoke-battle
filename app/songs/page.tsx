@@ -12,6 +12,7 @@ import { Suspense, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GameModeModal } from "@/components/game-mode-modal";
+import { MultiplayerFriendModal } from "@/components/multiplayer-friend-modal";
 import { PageHeader } from "@/components/page-header";
 
 const sortOptions = ["Title", "Artist", "Newest", "Genre"];
@@ -22,6 +23,7 @@ function SongsPageContent() {
   const [selectedDifficulty, setSelectedDifficulty] = useState("All");
   const [sortBy, setSortBy] = useState("Title");
   const [showModeModal, setShowModeModal] = useState(false);
+  const [showFriendModal, setShowFriendModal] = useState(false);
   const [selectedSong, setSelectedSong] = useState<SongWithDuration | null>(
     null
   );
@@ -464,6 +466,24 @@ function SongsPageContent() {
         <GameModeModal
           isOpen={showModeModal}
           onClose={handleCloseModal}
+          onMultiplayerSelect={() => {
+            setShowModeModal(false);
+            setShowFriendModal(true);
+          }}
+          songId={selectedSong.id}
+          songTitle={selectedSong.title}
+          songArtist={selectedSong.artist}
+        />
+      )}
+
+      {/* Multiplayer Friend Selection Modal */}
+      {selectedSong && (
+        <MultiplayerFriendModal
+          isOpen={showFriendModal}
+          onClose={() => {
+            setShowFriendModal(false);
+            setSelectedSong(null);
+          }}
           songId={selectedSong.id}
           songTitle={selectedSong.title}
           songArtist={selectedSong.artist}

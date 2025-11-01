@@ -37,7 +37,7 @@ export async function POST(
       );
     }
 
-    // Find the challenge
+    // Find the challenge with participants
     const challenge = await prisma.challenge.findUnique({
       where: { id: challengeId },
       include: {
@@ -50,15 +50,6 @@ export async function POST(
             avatar: true,
           },
         },
-        challenged: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            avatar: true,
-          },
-        },
         song: {
           select: {
             id: true,
@@ -66,6 +57,19 @@ export async function POST(
             title: true,
             artist: true,
             thumbnail: true,
+          },
+        },
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+              },
+            },
           },
         },
       },
@@ -78,46 +82,57 @@ export async function POST(
       );
     }
 
-    // Check if the current user is the challenged user
-    if (challenge.challengedId !== dbUser.id) {
+    // Find the participant record for current user
+    const participant = challenge.participants.find(
+      (p) => p.userId === dbUser.id
+    );
+
+    if (!participant) {
       return NextResponse.json(
         {
           success: false,
-          message: "You can only decline challenges sent to you",
+          message: "You are not a participant in this challenge",
         },
         { status: 403 }
       );
     }
 
-    // Check if the challenge is still pending
-    if (challenge.status !== "PENDING") {
+    // Can't decline if already accepted or completed
+    if (participant.status === "ACCEPTED") {
       return NextResponse.json(
         {
           success: false,
-          message: "This challenge has already been responded to",
+          message: "You have already accepted this challenge",
         },
         { status: 400 }
       );
     }
 
-    // Update the challenge status
-    const updatedChallenge = await prisma.challenge.update({
-      where: { id: challengeId },
+    // Check if already declined
+    if (participant.status === "DECLINED") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "You have already declined this challenge",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Update participant status to DECLINED
+    await prisma.challengeParticipant.update({
+      where: { id: participant.id },
       data: {
         status: "DECLINED",
         declinedAt: new Date(),
       },
+    });
+
+    // Fetch updated challenge
+    const updatedChallenge = await prisma.challenge.findUnique({
+      where: { id: challengeId },
       include: {
         challenger: {
-          select: {
-            id: true,
-            username: true,
-            firstName: true,
-            lastName: true,
-            avatar: true,
-          },
-        },
-        challenged: {
           select: {
             id: true,
             username: true,
@@ -133,6 +148,19 @@ export async function POST(
             title: true,
             artist: true,
             thumbnail: true,
+          },
+        },
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+              },
+            },
           },
         },
       },
@@ -147,12 +175,20 @@ export async function POST(
       success: true,
       message: `Challenge from ${challengerName} has been declined`,
       challenge: {
-        id: updatedChallenge.id,
-        challenger: updatedChallenge.challenger,
-        challenged: updatedChallenge.challenged,
-        song: updatedChallenge.song,
-        status: updatedChallenge.status,
-        declinedAt: updatedChallenge.declinedAt,
+        id: updatedChallenge!.id,
+        challenger: updatedChallenge!.challenger,
+        song: updatedChallenge!.song,
+        status: updatedChallenge!.status,
+        participants: updatedChallenge!.participants.map((p) => ({
+          id: p.id,
+          userId: p.userId,
+          user: p.user,
+          status: p.status,
+          score: p.score,
+          acceptedAt: p.acceptedAt,
+          declinedAt: p.declinedAt,
+          completedAt: p.completedAt,
+        })),
       },
     });
   } catch (error) {

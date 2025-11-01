@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-interface ChallengeNotification {
+interface BattleNotification {
   id: string;
   challengerName: string;
   challengerAvatar: string | null;
@@ -11,11 +11,22 @@ interface ChallengeNotification {
   songId: string;
   createdAt: string;
   expiresAt: string | null;
+  status: "pending_sent" | "pending_received"; // Track if user sent or received
+  participants: Array<{
+    userId: string;
+    user: {
+      username: string | null;
+      firstName: string | null;
+      lastName: string | null;
+      avatar: string | null;
+    };
+    status: string;
+  }>;
 }
 
 export function useChallengeNotifications() {
   const [notifications, setNotifications] = useState<
-    ChallengeNotification[]
+    BattleNotification[]
   >([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -26,9 +37,11 @@ export function useChallengeNotifications() {
 
       if (data.success) {
         const pendingReceived = data.pendingReceived || [];
-        // Format notifications with proper challenger name
+        const pendingSent = data.pendingSent || [];
+        
+        // Format received notifications
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const formattedNotifications = pendingReceived.map((challenge: any) => ({
+        const receivedNotifications = pendingReceived.map((challenge: any) => ({
           id: challenge.id,
           challengerName:
             challenge.challenger.username ||
@@ -40,12 +53,36 @@ export function useChallengeNotifications() {
           songId: challenge.song.customId || challenge.song.id,
           createdAt: challenge.createdAt,
           expiresAt: challenge.expiresAt,
+          status: "pending_received" as const,
+          participants: challenge.participants || [],
         }));
+
+        // Format sent notifications
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const sentNotifications = pendingSent.map((challenge: any) => ({
+          id: challenge.id,
+          challengerName:
+            challenge.challenger.username ||
+            `${challenge.challenger.firstName || ""} ${challenge.challenger.lastName || ""}`.trim() ||
+            "Unknown User",
+          challengerAvatar: challenge.challenger.avatar,
+          songTitle: challenge.song.title,
+          songArtist: challenge.song.artist,
+          songId: challenge.song.customId || challenge.song.id,
+          createdAt: challenge.createdAt,
+          expiresAt: challenge.expiresAt,
+          status: "pending_sent" as const,
+          participants: challenge.participants || [],
+        }));
+
+        // Combine both, received first
+        const formattedNotifications = [...receivedNotifications, ...sentNotifications];
         setNotifications(formattedNotifications);
-        setUnreadCount(formattedNotifications.length);
+        // Count only received as unread (since you can't accept your own requests)
+        setUnreadCount(receivedNotifications.length);
       }
     } catch (error) {
-      console.error("Error loading challenge notifications:", error);
+      console.error("Error loading battle notifications:", error);
     }
   };
 

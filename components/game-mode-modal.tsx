@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 interface GameModeModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onMultiplayerSelect?: () => void;
   songId: string;
   songTitle: string;
   songArtist: string;
@@ -26,10 +27,10 @@ const gameModes = [
   {
     id: "multiplayer",
     title: "Multiplayer",
-    description: "Battle against friends in real-time",
+    description: "Challenge friends to battle on this song",
     icon: Users,
     color: "from-purple-500 to-pink-500",
-    players: "2-8 players",
+    players: "Challenge a friend",
   },
   {
     id: "tournament",
@@ -44,6 +45,7 @@ const gameModes = [
 export function GameModeModal({
   isOpen,
   onClose,
+  onMultiplayerSelect,
   songId,
   songTitle,
   songArtist,
@@ -51,8 +53,13 @@ export function GameModeModal({
   const router = useRouter();
 
   const handleModeSelect = (modeId: string) => {
-    // Navigate to gameplay with the selected mode
-    router.push(`/gameplay?songId=${songId}&mode=${modeId}`);
+    if (modeId === "multiplayer" && onMultiplayerSelect) {
+      // For multiplayer, open friend selection modal instead
+      onMultiplayerSelect();
+    } else {
+      // For single player and tournament, navigate to gameplay
+      router.push(`/gameplay?songId=${songId}&mode=${modeId}`);
+    }
   };
 
   const handleClose = useCallback(() => {
