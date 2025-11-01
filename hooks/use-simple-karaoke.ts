@@ -28,7 +28,11 @@ interface SimpleKaraokeState {
 
 interface UseSimpleKaraokeOptions {
   onScoreUpdate?: (score: number, accuracy: number) => void;
-  onGameEnd?: (finalScore: number, totalAccuracy: number) => void;
+  onGameEnd?: (
+    finalScore: number,
+    totalAccuracy: number,
+    totalTiming: number
+  ) => void;
 }
 
 export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
@@ -58,6 +62,12 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
   const audioPlayerRef = useRef<SimpleAudioPlayer | null>(null);
   const currentSongRef = useRef<Song | null>(null);
   const recordingStartTimeRef = useRef<number | null>(null);
+  const stateRef = useRef<SimpleKaraokeState>(state); // Keep ref to current state
+
+  // Update state ref whenever state changes
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Microphone hook
   const {
@@ -167,6 +177,16 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
           userWords
         );
 
+        console.log("🎯 SCORING DEBUG in useSimpleKaraoke:", {
+          transcript,
+          userWords: userWords.length,
+          expectedLyrics: expectedLyrics.length,
+          scoringResult,
+          currentStateScore: state.score,
+          currentStateAccuracy: state.accuracy,
+          currentStateTiming: state.timing,
+        });
+
         setState((prev) => {
           // Calculate proper running average
           const newScoringEvents = prev.scoringEvents + 1;
@@ -185,6 +205,9 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
             scoringEvents: newScoringEvents,
           };
           console.log("🔄 State update:", {
+            oldScore: prev.score,
+            newScore: newState.score,
+            scoreAdded: scoringResult.totalScore,
             oldAccuracy: prev.accuracy,
             newAccuracy: newState.accuracy,
             oldTiming: prev.timing,
@@ -230,16 +253,32 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
   const handleGameEnd = useCallback(() => {
     stopMicRecording();
 
-    if (onGameEnd) {
-      onGameEnd(state.score, state.accuracy);
-    }
-
+    // Update state to mark game as ended first
     setState((prev) => ({
       ...prev,
       isPlaying: false,
       isRecording: false,
     }));
-  }, [stopMicRecording, onGameEnd, state.score, state.accuracy]);
+
+    // Use a small delay to ensure all pending state updates are processed
+    // This ensures we get the final scoring values before calling onGameEnd
+    setTimeout(() => {
+      // Use stateRef to get the most current state values synchronously
+      const currentState = stateRef.current;
+      
+      console.log("🎯 handleGameEnd called with current state from ref:", {
+        score: currentState.score,
+        accuracy: currentState.accuracy,
+        timing: currentState.timing,
+        scoringEvents: currentState.scoringEvents,
+      });
+
+      if (onGameEnd) {
+        // Call onGameEnd with current state values from ref
+        onGameEnd(currentState.score, currentState.accuracy, currentState.timing);
+      }
+    }, 100); // Small delay to ensure state is up to date
+  }, [stopMicRecording, onGameEnd]);
 
   // Initialize audio player
   const initializeAudioPlayer = useCallback(

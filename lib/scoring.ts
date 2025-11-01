@@ -7,6 +7,7 @@ export interface ScoringResult {
     timingAccuracy: number;
   };
   feedback: string[];
+  bonusPoints?: number;
 }
 
 export interface LyricWord {
@@ -24,6 +25,7 @@ export interface UserWord {
 
 /**
  * Calculate accuracy score based on word-by-word comparison with karaoke-friendly improvements
+ * Now supports ad-libbing - rewards correct lyrics without penalizing extra words
  */
 export function calculateAccuracyScore(
   expectedWords: string[],
@@ -47,25 +49,28 @@ export function calculateAccuracyScore(
   }
 
   let totalScore = 0;
+  let matchedWords = 0;
   const totalWords = expectedWords.length;
 
-  // Improved word-by-word comparison with karaoke-friendly features
+  // Ad-libbing friendly word-by-word comparison
+  // This approach finds expected words in the user's transcript without penalizing extra words
+  const usedUserWords = new Set<number>(); // Track which user words we've matched
+
   for (let i = 0; i < expectedWords.length; i++) {
     const expected = expectedWords[i]
       .toLowerCase()
       .trim()
       .replace(/[^\w\s]/g, "");
 
-    // Find the best matching user word (allows for word order flexibility)
+    // Find the best matching user word (allows for ad-libbing and word order flexibility)
     let bestMatch = 0;
     let bestUserWord = "";
+    let bestUserIndex = -1;
 
-    // Check words around the expected position (±2 words for flexibility)
-    const searchStart = Math.max(0, i - 2);
-    const searchEnd = Math.min(userWords.length, i + 3);
-
-    for (let j = searchStart; j < searchEnd; j++) {
-      if (j >= userWords.length) break;
+    // Search through all user words to find the best match
+    for (let j = 0; j < userWords.length; j++) {
+      // Skip words we've already matched to avoid double-counting
+      if (usedUserWords.has(j)) continue;
 
       const user = userWords[j]
         .toLowerCase()
@@ -76,6 +81,7 @@ export function calculateAccuracyScore(
         // Perfect match
         bestMatch = 1.0;
         bestUserWord = user;
+        bestUserIndex = j;
         break;
       } else {
         // Check for partial matches with improved similarity
@@ -83,34 +89,40 @@ export function calculateAccuracyScore(
         if (similarity > bestMatch) {
           bestMatch = similarity;
           bestUserWord = user;
+          bestUserIndex = j;
         }
       }
     }
 
-    // Apply karaoke-friendly scoring
+    // Apply ad-libbing friendly scoring
     let wordScore = 0;
-    if (bestMatch >= 0.9) {
+    if (bestMatch >= 0.8) {
       wordScore = 1.0; // Perfect or near-perfect match
-    } else if (bestMatch >= 0.7) {
-      wordScore = 0.8; // Good match (e.g., "singin'" vs "singing")
-    } else if (bestMatch >= 0.5) {
-      wordScore = 0.6; // Partial match (e.g., "love" vs "luv")
-    } else if (bestMatch >= 0.3) {
+    } else if (bestMatch >= 0.6) {
+      wordScore = 0.9; // Very good match
+    } else if (bestMatch >= 0.4) {
+      wordScore = 0.7; // Good match (e.g., "singin'" vs "singing")
+    } else if (bestMatch >= 0.2) {
+      wordScore = 0.5; // Partial match (e.g., "love" vs "luv")
+    } else if (bestMatch >= 0.1) {
       wordScore = 0.3; // Weak match (e.g., "the" vs "da")
     } else {
-      wordScore = 0; // No match
+      wordScore = 0; // No match - but this doesn't penalize ad-libbing
     }
 
-    // Bonus for getting the right word in the right position
-    if (
-      i < userWords.length &&
-      expectedWords[i].toLowerCase().trim() ===
-        userWords[i].toLowerCase().trim()
-    ) {
-      wordScore = Math.min(1.0, wordScore + 0.1);
+    // Bonus for getting the right word in approximately the right position
+    if (bestUserIndex >= 0) {
+      const positionBonus = Math.max(0, 1 - Math.abs(i - bestUserIndex) * 0.1);
+      wordScore = Math.min(1.0, wordScore + positionBonus * 0.2);
     }
 
     totalScore += wordScore;
+
+    // Mark this user word as used if we found a match
+    if (bestMatch > 0 && bestUserIndex >= 0) {
+      usedUserWords.add(bestUserIndex);
+      matchedWords++;
+    }
 
     console.log(`🎯 Word ${i} (${expected}):`, {
       bestMatch,
@@ -120,11 +132,28 @@ export function calculateAccuracyScore(
     });
   }
 
-  const accuracy = (totalScore / totalWords) * 100;
+  // Calculate accuracy with ad-libbing bonus
+  const baseAccuracy = (totalScore / totalWords) * 100;
+
+  // Bonus for ad-libbing: if user sang more words than expected, give a small bonus
+  const adLibBonus =
+    userWords.length > expectedWords.length
+      ? Math.min(10, (userWords.length - expectedWords.length) * 2)
+      : 0;
+
+  // Bonus for matching a high percentage of expected words
+  const matchRateBonus = matchedWords >= totalWords * 0.8 ? 5 : 0;
+
+  const accuracy = baseAccuracy + adLibBonus + matchRateBonus;
+
   console.log("🎯 Accuracy calculation result:", {
     totalScore,
     totalWords,
-    accuracy,
+    matchedWords,
+    baseAccuracy,
+    adLibBonus,
+    matchRateBonus,
+    finalAccuracy: accuracy,
   });
 
   return Math.min(100, Math.max(0, accuracy));
@@ -132,6 +161,7 @@ export function calculateAccuracyScore(
 
 /**
  * Calculate timing accuracy based on word timing with karaoke-friendly improvements
+ * Now supports ad-libbing by focusing on timing of matched words
  */
 export function calculateTimingScore(
   expectedLyrics: LyricWord[],
@@ -152,27 +182,30 @@ export function calculateTimingScore(
     const endError = Math.abs(expected.endTime - user.endTime);
     const avgError = (startError + endError) / 2;
 
-    // Karaoke-friendly timing scoring with more realistic thresholds
+    // More lenient karaoke-friendly timing scoring
     let timingScore = 0;
 
-    if (avgError <= 200) {
-      // Perfect timing (within 200ms)
+    if (avgError <= 500) {
+      // Perfect timing (within 500ms)
       timingScore = 100;
-    } else if (avgError <= 400) {
-      // Good timing (within 400ms) - still very good for karaoke
-      timingScore = 90;
-    } else if (avgError <= 600) {
-      // Acceptable timing (within 600ms) - reasonable for karaoke
-      timingScore = 80;
     } else if (avgError <= 800) {
-      // Fair timing (within 800ms) - still decent for karaoke
-      timingScore = 70;
-    } else if (avgError <= 1000) {
-      // Poor timing (within 1000ms) - but still some credit
-      timingScore = 50;
-    } else if (avgError <= 1500) {
-      // Very poor timing (within 1500ms) - minimal credit
-      timingScore = 30;
+      // Excellent timing (within 800ms)
+      timingScore = 95;
+    } else if (avgError <= 1200) {
+      // Good timing (within 1200ms) - very good for karaoke
+      timingScore = 85;
+    } else if (avgError <= 1800) {
+      // Acceptable timing (within 1800ms) - reasonable for karaoke
+      timingScore = 75;
+    } else if (avgError <= 2500) {
+      // Fair timing (within 2500ms) - still decent for karaoke
+      timingScore = 60;
+    } else if (avgError <= 3500) {
+      // Poor timing (within 3500ms) - but still some credit
+      timingScore = 40;
+    } else if (avgError <= 5000) {
+      // Very poor timing (within 5000ms) - minimal credit
+      timingScore = 20;
     } else {
       // Way off timing - no credit
       timingScore = 0;
@@ -231,7 +264,7 @@ function calculateWordSimilarity(word1: string, word2: string): number {
   // Quick exact match check
   if (word1 === word2) return 1;
 
-  // Common karaoke variations that should get high similarity scores
+  // Expanded karaoke variations that should get high similarity scores
   const karaokeVariations = [
     ["singin", "singing"],
     ["lovin", "loving"],
@@ -267,6 +300,50 @@ function calculateWordSimilarity(word1: string, word2: string): number {
     ["weren't", "were not"],
     ["isn't", "is not"],
     ["aren't", "are not"],
+    // Common singing variations
+    ["yeah", "yes"],
+    ["nah", "no"],
+    ["gonna", "going to"],
+    ["wanna", "want to"],
+    ["gotta", "got to"],
+    ["kinda", "kind of"],
+    ["sorta", "sort of"],
+    ["lemme", "let me"],
+    ["gimme", "give me"],
+    ["dunno", "don't know"],
+    ["ain't", "isn't"],
+    ["won't", "will not"],
+    ["can't", "cannot"],
+    ["don't", "do not"],
+    ["doesn't", "does not"],
+    ["didn't", "did not"],
+    ["wouldn't", "would not"],
+    ["couldn't", "could not"],
+    ["shouldn't", "should not"],
+    ["haven't", "have not"],
+    ["hasn't", "has not"],
+    ["hadn't", "had not"],
+    ["wasn't", "was not"],
+    ["weren't", "were not"],
+    ["isn't", "is not"],
+    ["aren't", "are not"],
+    // Phonetic variations
+    ["da", "the"],
+    ["dat", "that"],
+    ["dis", "this"],
+    ["dem", "them"],
+    ["dey", "they"],
+    ["wit", "with"],
+    ["bout", "about"],
+    ["cause", "because"],
+    ["til", "until"],
+    ["em", "them"],
+    ["im", "i'm"],
+    ["ur", "your"],
+    ["u", "you"],
+    ["r", "are"],
+    ["2", "to"],
+    ["4", "for"],
   ];
 
   // Check for common karaoke variations
@@ -414,20 +491,28 @@ function generateFeedback(accuracy: number, timing: number): string[] {
     );
   }
 
-  // Overall encouragement
+  // Overall encouragement with ad-libbing support
   const totalScore = (accuracy + timing) / 2;
   if (totalScore >= 90) {
-    feedback.push("🌟 Amazing performance! You're a karaoke star!");
+    feedback.push(
+      "🌟 Amazing performance! Your ad-libbing skills are incredible!"
+    );
   } else if (totalScore >= 80) {
-    feedback.push("🎉 Great job! You're really getting the hang of karaoke!");
+    feedback.push(
+      "🎉 Great job! You're mastering both lyrics and creative expression!"
+    );
   } else if (totalScore >= 70) {
     feedback.push(
-      "🎵 Good performance! Keep practicing and you'll get even better!"
+      "🎵 Good performance! Keep mixing the lyrics with your own style!"
     );
   } else if (totalScore >= 50) {
-    feedback.push("🎤 Nice try! Karaoke takes practice - keep at it!");
+    feedback.push(
+      "🎤 Nice try! Don't be afraid to add your own flair to the song!"
+    );
   } else {
-    feedback.push("🎶 Don't give up! Every karaoke star started somewhere!");
+    feedback.push(
+      "🎶 Don't give up! Try adding some personal touches to make it yours!"
+    );
   }
 
   return feedback;

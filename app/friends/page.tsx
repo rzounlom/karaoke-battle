@@ -250,7 +250,10 @@ export default function FriendsPage() {
             </TabsTrigger>
             <TabsTrigger value="requests" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Requests ({friends?.pendingRequestsCount || 0})
+              Requests (
+              {(friends?.pendingReceived?.length || 0) +
+                (friends?.pendingSent?.length || 0)}
+              )
             </TabsTrigger>
             <TabsTrigger value="discover" className="flex items-center gap-2">
               <Search className="h-4 w-4" />

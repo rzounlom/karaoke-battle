@@ -12,7 +12,7 @@ import { useState } from "react";
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
-  const { notifications, unreadCount, markAsRead } =
+  const { notifications, unreadCount, markAsRead, loadNotifications } =
     useFriendRequestNotifications();
 
   const respondToFriendRequest = async (
@@ -29,8 +29,10 @@ export function NotificationBell() {
       const data = await response.json();
 
       if (data.success) {
-        // Refresh notifications
-        window.location.reload(); // Simple refresh for now
+        // Refresh notifications by reloading them
+        loadNotifications();
+        // Close the notification dropdown
+        setIsOpen(false);
       } else {
         alert(data.message);
       }

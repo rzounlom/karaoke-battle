@@ -10,8 +10,10 @@ import {
   Square,
   Trophy,
   XCircle,
+  Maximize,
+  Minimize,
 } from "lucide-react";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -19,6 +21,11 @@ import { LyricsDisplayWithFrequency } from "@/components/lyrics-display-with-fre
 import { ProtectedRoute } from "@/components/protected-route";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
+import {
+  GameplayEventDisplay,
+  FullScreenEventDisplay,
+} from "@/components/gameplay-event-display";
+import { useGameplayEvents } from "@/hooks/use-gameplay-events";
 import { debugLog } from "@/lib/debug";
 import { formatTime } from "@/lib/utils";
 import { getSongById } from "@/lib/songs-data";
@@ -37,6 +44,25 @@ function GameplayContent() {
   const [showScoringModal, setShowScoringModal] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
   const [sessionConfirmed, setSessionConfirmed] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // Score decay system
+  const [lastVoiceActivity, setLastVoiceActivity] = useState<number>(
+    Date.now()
+  );
+  const [isDecaying, setIsDecaying] = useState(false);
+  const [decayAmount, setDecayAmount] = useState(0); // Track total decay applied
+  const decayIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Gameplay events system
+  const { events, stats, processScoreUpdate, resetStats } = useGameplayEvents({
+    onEvent: (event) => {
+      debugLog("🎉 Gameplay event:", event);
+    },
+    onStatsUpdate: (stats) => {
+      debugLog("📊 Stats updated:", stats);
+    },
+  });
 
   // Mock leaderboard data
   const mockLeaderboard = [
@@ -124,11 +150,82 @@ function GameplayContent() {
     getAudioPlayer,
     clearError,
   } = useSimpleKaraoke({
-    onScoreUpdate: (newScore, newAccuracy) => {
-      debugLog("Score update:", newScore, newAccuracy);
+    onScoreUpdate: (newScore: number, newAccuracy: number) => {
+      debugLog("🎯 Score update received:", {
+        newScore,
+        newAccuracy,
+        currentHookScore: score,
+        currentHookAccuracy: accuracy,
+        currentHookTiming: timing,
+        gameplayBonusPoints: stats.totalBonusPoints,
+      });
+
+      // Process gameplay events based on score update
+      // We'll use the current timing value from the hook
+      processScoreUpdate(newAccuracy, timing, newScore);
     },
-    onGameEnd: async (finalScore, totalAccuracy) => {
-      debugLog("Game ended:", finalScore, totalAccuracy);
+    onGameEnd: async (finalScore, totalAccuracy, totalTiming) => {
+      debugLog("🎮 Game ended naturally - callback received:", {
+        finalScore,
+        totalAccuracy,
+        totalTiming,
+      });
+
+      // Use callback parameters - these come from the hook's current state via ref
+      // This ensures we get the most up-to-date values, just like manual stop
+      const currentScore = finalScore;
+      const currentAccuracy = totalAccuracy;
+      const currentTiming = totalTiming;
+
+      debugLog("🔍 DETAILED SCORE DEBUG - Natural Completion:", {
+        // Callback values (these are the current values from hook's stateRef)
+        callbackScore: finalScore,
+        callbackAccuracy: totalAccuracy,
+        callbackTiming: totalTiming,
+        
+        // Hook state values (might be stale, but shown for comparison)
+        hookScore: score,
+        hookAccuracy: accuracy,
+        hookTiming: timing,
+        hookScoringEvents: scoringEvents,
+        
+        // Gameplay events
+        gameplayBonusPoints: stats.totalBonusPoints,
+        gameplayStats: stats,
+        
+        // Decay
+        decayAmount: decayAmount,
+        isDecaying: isDecaying,
+        
+        // Song info
+        songId: currentSong?.id,
+        songTitle: currentSong?.title,
+      });
+
+      // Apply score decay if user stopped singing
+      const decayedAccuracy = Math.max(0, currentAccuracy - decayAmount);
+      const decayedTiming = Math.max(0, currentTiming - decayAmount);
+
+      debugLog("Score decay applied:", {
+        originalAccuracy: currentAccuracy,
+        originalTiming: currentTiming,
+        decayAmount,
+        decayedAccuracy,
+        decayedTiming,
+      });
+
+      // Calculate total score including gameplay event bonuses
+      const totalScoreWithBonuses = currentScore + stats.totalBonusPoints;
+      debugLog("Natural completion score calculation:", {
+        hookScore: currentScore,
+        hookAccuracy: currentAccuracy,
+        hookTiming: currentTiming,
+        callbackScore: finalScore,
+        callbackAccuracy: totalAccuracy,
+        callbackTiming: totalTiming,
+        bonusPoints: stats.totalBonusPoints,
+        totalScore: totalScoreWithBonuses,
+      });
 
       // Set reason as completed
       setGameEndReason("completed");
@@ -138,48 +235,46 @@ function GameplayContent() {
 
       // Capture final scores and show results when song completes naturally
       setFinalScore({
-        totalScore: finalScore,
-        accuracy: totalAccuracy,
-        timing: timing,
+        totalScore: totalScoreWithBonuses,
+        accuracy: decayedAccuracy,
+        timing: decayedTiming,
         scoringEvents: scoringEvents,
       });
 
-      // Update user experience - only if session is confirmed
-      if (sessionConfirmed) {
-        try {
-          const response = await fetch("/api/user/experience", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              totalScore: finalScore,
-              accuracy: totalAccuracy,
-              timing: timing,
-              songDifficulty: currentSong?.difficulty || "MEDIUM",
-              songId: currentSong?.id,
-              gameEndReason: gameEndReason,
-            }),
-          });
+      // Update user experience - session is confirmed for natural completion
+      try {
+        const response = await fetch("/api/user/experience", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            totalScore: totalScoreWithBonuses,
+            accuracy: decayedAccuracy,
+            timing: decayedTiming,
+            songDifficulty: currentSong?.difficulty || "MEDIUM",
+            songId: currentSong?.id,
+            gameEndReason: "completed",
+          }),
+        });
 
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-              debugLog("Experience updated:", data);
-              if (data.leveledUp) {
-                debugLog("🎉 Level up! New level:", data.newLevel);
-              }
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            debugLog("Experience updated:", data);
+            if (data.leveledUp) {
+              debugLog("🎉 Level up! New level:", data.newLevel);
             }
           }
-        } catch (error) {
-          console.error("Error updating experience:", error);
         }
-      } else {
-        console.log("Session not confirmed - no experience recorded");
+      } catch (error) {
+        console.error("Error updating experience:", error);
       }
 
-      // Show results screen
-      setShowResults(true);
+      // Show results screen - wait a bit to ensure state is updated
+      setTimeout(() => {
+        setShowResults(true);
+      }, 100);
     },
   });
 
@@ -191,22 +286,62 @@ function GameplayContent() {
     }
   }, [clearError]);
 
-  // Handle escape key to close modals
+  // Score decay system - gradually reduce timing and accuracy when user stops singing
   useEffect(() => {
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && showHelpModal) {
-        setShowHelpModal(false);
+    if (!isPlaying || isPaused) return;
+
+    const checkVoiceActivity = () => {
+      const now = Date.now();
+      const timeSinceLastVoice = now - lastVoiceActivity;
+
+      // If user has been silent for more than 2 seconds, start decay
+      if (timeSinceLastVoice > 2000 && !isDecaying) {
+        setIsDecaying(true);
+        debugLog("🔇 User stopped singing, starting score decay");
+
+        // Start decay interval
+        decayIntervalRef.current = setInterval(() => {
+          // Gradually reduce timing and accuracy
+          // This simulates the user falling behind as the song continues
+          const decayRate = 0.5; // Reduce by 0.5% per second
+
+          // Track total decay applied
+          setDecayAmount((prev) => {
+            const newDecay = prev + decayRate;
+            debugLog("📉 Score decay: total decay now", newDecay);
+            return newDecay;
+          });
+        }, 1000);
       }
-      if (event.key === "Escape" && showScoringModal) {
-        setShowScoringModal(false);
+      // If user starts singing again, stop decay
+      else if (timeSinceLastVoice <= 2000 && isDecaying) {
+        setIsDecaying(false);
+        if (decayIntervalRef.current) {
+          clearInterval(decayIntervalRef.current);
+          decayIntervalRef.current = null;
+        }
+        debugLog("🎤 User started singing again, stopping score decay");
       }
     };
 
-    if (showHelpModal || showScoringModal) {
-      document.addEventListener("keydown", handleEscape);
-      return () => document.removeEventListener("keydown", handleEscape);
+    // Check voice activity every 500ms
+    const voiceCheckInterval = setInterval(checkVoiceActivity, 500);
+
+    return () => {
+      clearInterval(voiceCheckInterval);
+      if (decayIntervalRef.current) {
+        clearInterval(decayIntervalRef.current);
+        decayIntervalRef.current = null;
+      }
+    };
+  }, [isPlaying, isPaused, lastVoiceActivity, isDecaying]);
+
+  // Track voice activity
+  useEffect(() => {
+    if (isVoiceActive && volumeLevel > 0.01) {
+      setLastVoiceActivity(Date.now());
     }
-  }, [showHelpModal, showScoringModal]);
+  }, [isVoiceActive, volumeLevel]);
 
   // Load song when component mounts
   useEffect(() => {
@@ -315,11 +450,51 @@ function GameplayContent() {
     // Set reason as quit
     setGameEndReason("quit");
 
+    debugLog("🔍 DETAILED SCORE DEBUG - Manual Stop:", {
+      // Hook values
+      hookScore: score,
+      hookAccuracy: accuracy,
+      hookTiming: timing,
+      hookScoringEvents: scoringEvents,
+
+      // Gameplay events
+      gameplayBonusPoints: stats.totalBonusPoints,
+      gameplayStats: stats,
+
+      // Decay
+      decayAmount: decayAmount,
+      isDecaying: isDecaying,
+
+      // Song info
+      songId: currentSong?.id,
+      songTitle: currentSong?.title,
+    });
+
+    // Apply score decay if user stopped singing
+    const decayedAccuracy = Math.max(0, accuracy - decayAmount);
+    const decayedTiming = Math.max(0, timing - decayAmount);
+
+    debugLog("Manual stop score decay applied:", {
+      originalAccuracy: accuracy,
+      originalTiming: timing,
+      decayAmount,
+      decayedAccuracy,
+      decayedTiming,
+    });
+
+    // Calculate total score including gameplay event bonuses
+    const totalScoreWithBonuses = score + stats.totalBonusPoints;
+    debugLog("Manual stop score calculation:", {
+      baseScore: score,
+      bonusPoints: stats.totalBonusPoints,
+      totalScore: totalScoreWithBonuses,
+    });
+
     // Capture final scores
     setFinalScore({
-      totalScore: score,
-      accuracy: accuracy,
-      timing: timing,
+      totalScore: totalScoreWithBonuses,
+      accuracy: decayedAccuracy,
+      timing: decayedTiming,
       scoringEvents: scoringEvents,
     });
 
@@ -331,12 +506,12 @@ function GameplayContent() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          totalScore: score,
-          accuracy: accuracy,
-          timing: timing,
+          totalScore: totalScoreWithBonuses,
+          accuracy: decayedAccuracy,
+          timing: decayedTiming,
           songDifficulty: currentSong?.difficulty || "MEDIUM",
           songId: currentSong?.id,
-          gameEndReason: gameEndReason,
+          gameEndReason: "quit",
         }),
       });
 
@@ -372,6 +547,14 @@ function GameplayContent() {
     // Reset game state
     resetGame();
 
+    // Reset gameplay events
+    resetStats();
+
+    // Reset score decay system
+    setDecayAmount(0);
+    setIsDecaying(false);
+    setLastVoiceActivity(Date.now());
+
     // Reset local state
     setGameEndReason("completed");
     setSessionConfirmed(false);
@@ -402,6 +585,69 @@ function GameplayContent() {
     // Navigate to songs page
     window.location.href = "/songs";
   };
+
+  // Full-screen functionality
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen);
+  };
+
+  // Handle click in full-screen mode
+  const handleFullScreenClick = () => {
+    // Only handle play/pause functionality in full-screen mode
+    if (isPlaying) {
+      pauseGame();
+    } else if (isPaused) {
+      resumeGame();
+    } else {
+      // If stopped, start
+      if (!microphoneReady) {
+        alert("Microphone is not ready. Please wait a moment and try again.");
+        return;
+      }
+
+      const audioPlayer = getAudioPlayer();
+      if (!audioPlayer) {
+        alert("Audio player not initialized. Please refresh the page.");
+        return;
+      }
+
+      if (!audioPlayer.isReadyToPlay()) {
+        const audioState = audioPlayer.getAudioState();
+        console.log("Audio not ready:", audioState);
+        alert(
+          `Audio is not ready to play. Ready state: ${audioState.readyState}, Duration: ${audioState.duration}. Please wait a moment and try again.`
+        );
+        return;
+      }
+
+      try {
+        startGame();
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        alert(`Failed to start gameplay: ${errorMsg}`);
+      }
+    }
+  };
+
+  // Handle escape key to exit full-screen
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isFullScreen) {
+        setIsFullScreen(false);
+      }
+      if (event.key === "Escape" && showHelpModal) {
+        setShowHelpModal(false);
+      }
+      if (event.key === "Escape" && showScoringModal) {
+        setShowScoringModal(false);
+      }
+    };
+
+    if (isFullScreen || showHelpModal || showScoringModal) {
+      document.addEventListener("keydown", handleEscape);
+      return () => document.removeEventListener("keydown", handleEscape);
+    }
+  }, [isFullScreen, showHelpModal, showScoringModal]);
 
   const audioPlayer = getAudioPlayer();
   const progress =
@@ -550,6 +796,181 @@ function GameplayContent() {
     );
   }
 
+  // Full-screen layout
+  if (isFullScreen) {
+    return (
+      <ProtectedRoute>
+        <div
+          className="fixed inset-0 bg-gradient-to-br from-purple-900 via-pink-900 to-indigo-900 text-white z-50 flex flex-col"
+          onClick={handleFullScreenClick}
+        >
+          {/* Full-screen header */}
+          <div className="flex items-center justify-between p-4 border-b border-white/20">
+            <div className="flex items-center space-x-4">
+              <div className="text-white">
+                <h1 className="text-xl font-semibold">{currentSong.title}</h1>
+                <p className="text-sm text-white/70">{currentSong.artist}</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-center text-white">
+                <div className="text-3xl font-bold">{score}</div>
+                <div className="text-sm text-white/70">Score</div>
+              </div>
+              {stats.currentStreak > 0 && (
+                <div className="text-center text-orange-400">
+                  <div className="text-2xl font-bold">
+                    🔥 {stats.currentStreak}
+                  </div>
+                  <div className="text-xs text-white/70">Streak</div>
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsFullScreen(false);
+                }}
+                className="text-white border-white/30 hover:bg-white/10"
+                title="Exit Full Screen"
+              >
+                <Minimize className="h-4 w-4 mr-2" />
+                Exit Full Screen
+              </Button>
+            </div>
+          </div>
+
+          {/* Full-screen gameplay area */}
+          <div className="flex-1 flex flex-col p-6">
+            {/* Progress Bar */}
+            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-white/20 mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-white font-medium">
+                  {formatTime(currentTime / 1000)}
+                </span>
+                <span className="text-white/70">
+                  {audioPlayer
+                    ? formatTime(audioPlayer.getState().duration)
+                    : "0:00"}
+                </span>
+              </div>
+              <div className="w-full bg-white/20 rounded-full h-3">
+                <div
+                  className="bg-gradient-to-r from-yellow-400 to-pink-500 h-3 rounded-full transition-all duration-300"
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+            </div>
+
+            {/* Status Display */}
+            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-white/20 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div>
+                  <div className="text-3xl font-bold text-white">
+                    {accuracy}%
+                  </div>
+                  <div className="text-sm text-white/70">Accuracy</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-white">{timing}%</div>
+                  <div className="text-sm text-white/70">Timing</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-white">
+                    {isRecording ? "🔴" : "⏹️"}
+                  </div>
+                  <div className="text-sm text-white/70">Recording</div>
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-white">
+                    {isPlaying ? "▶️" : isPaused ? "⏸️" : "⏹️"}
+                  </div>
+                  <div className="text-sm text-white/70">Status</div>
+                </div>
+                {stats.totalBonusPoints > 0 && (
+                  <div>
+                    <div className="text-3xl font-bold text-yellow-400">
+                      +{stats.totalBonusPoints}
+                    </div>
+                    <div className="text-sm text-white/70">Bonus</div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Lyrics Display */}
+            <div className="flex-1 bg-gradient-to-br from-purple-900 via-pink-900 to-indigo-900 rounded-xl backdrop-blur-sm border border-purple-200">
+              {isInitializing ? (
+                <div className="h-full flex flex-col justify-center items-center text-center">
+                  <div className="text-white text-2xl">Initializing...</div>
+                </div>
+              ) : error ? (
+                <div className="h-full flex flex-col justify-center items-center text-center">
+                  <div className="text-red-400">
+                    <div className="text-2xl font-bold mb-2">Error</div>
+                    <div className="text-sm">{error}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-full relative">
+                  <LyricsDisplayWithFrequency
+                    currentLyric={currentLyric}
+                    upcomingLyrics={upcomingLyrics}
+                    frequencyData={frequencyData || new Uint8Array(0)}
+                    isVoiceActive={isVoiceActive}
+                    isRecording={isRecording}
+                    className="h-full"
+                  />
+
+                  {/* Voice Transcription */}
+                  {transcript && (
+                    <div className="absolute bottom-4 left-4 right-4 bg-black/20 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+                      <div className="text-sm text-white/70 mb-1">
+                        Your voice:
+                      </div>
+                      <div className="text-white">
+                        &ldquo;{transcript}&rdquo;
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Click instruction */}
+                  <div className="absolute top-4 left-4 bg-black/20 backdrop-blur-sm rounded-lg p-3 border border-white/20">
+                    <div className="text-sm text-white/70">
+                      Click anywhere to{" "}
+                      {isPlaying ? "pause" : isPaused ? "resume" : "start"}
+                    </div>
+                    <div className="text-xs text-white/50 mt-1">
+                      Exit full-screen to stop
+                    </div>
+                  </div>
+
+                  {/* Full-screen exit button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsFullScreen(false);
+                    }}
+                    className="absolute bottom-4 right-4 bg-black/20 backdrop-blur-sm border-white/30 hover:bg-white/10 text-white hover:text-white z-10"
+                    title="Exit Full Screen"
+                  >
+                    <Minimize className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Full-screen Gameplay Events Display */}
+          <FullScreenEventDisplay events={events} />
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
@@ -613,6 +1034,14 @@ function GameplayContent() {
                 Score
               </div>
             </div>
+            {stats.currentStreak > 0 && (
+              <div className="text-center text-orange-600 dark:text-orange-400">
+                <div className="text-xl font-bold">
+                  🔥 {stats.currentStreak}
+                </div>
+                <div className="text-xs">Streak</div>
+              </div>
+            )}
             <UserProfile />
             <ThemeToggle />
           </div>
@@ -669,6 +1098,16 @@ function GameplayContent() {
                       Recording
                     </div>
                   </div>
+                  {stats.totalBonusPoints > 0 && (
+                    <div>
+                      <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                        +{stats.totalBonusPoints}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-white/70">
+                        Bonus
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -708,6 +1147,26 @@ function GameplayContent() {
                       </div>
                     </div>
                   )}
+
+                  {/* Full-screen button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFullScreen();
+                    }}
+                    className="absolute bottom-4 right-4 bg-black/20 backdrop-blur-sm border-white/30 hover:bg-white/10 text-white hover:text-white z-10"
+                    title={
+                      isFullScreen ? "Exit Full Screen" : "Enter Full Screen"
+                    }
+                  >
+                    {isFullScreen ? (
+                      <Minimize className="h-4 w-4" />
+                    ) : (
+                      <Maximize className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
               )}
 
@@ -912,6 +1371,9 @@ function GameplayContent() {
             </div>
           </div>
         </div>
+
+        {/* Gameplay Events Display */}
+        <GameplayEventDisplay events={events} />
 
         {/* Stop Confirmation Modal */}
         {showStopModal && (

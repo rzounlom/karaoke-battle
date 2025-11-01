@@ -344,6 +344,8 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
         recognition.continuous = true;
         recognition.interimResults = true;
         recognition.lang = "en-US";
+        recognition.maxAlternatives = 3; // Get multiple recognition alternatives
+        recognition.serviceURI = ""; // Use default service
 
         recognition.onstart = () => {
           console.log("🎤 Speech recognition started");
@@ -356,19 +358,34 @@ export function useSimpleMicrophone(options: UseSimpleMicrophoneOptions = {}) {
           let maxConfidence = 0;
 
           for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript;
-            const confidence = event.results[i][0].confidence;
+            const result = event.results[i];
+            const transcript = result[0].transcript;
+            const confidence = result[0].confidence;
 
-            if (event.results[i].isFinal) {
-              finalTranscript += transcript;
-            } else {
-              interimTranscript += transcript;
+            // Only process results with reasonable confidence
+            if (confidence > 0.3) {
+              if (result.isFinal) {
+                finalTranscript += transcript;
+              } else {
+                interimTranscript += transcript;
+              }
+
+              maxConfidence = Math.max(maxConfidence, confidence);
             }
-
-            maxConfidence = Math.max(maxConfidence, confidence);
           }
 
-          const fullTranscript = finalTranscript + interimTranscript;
+          // Normalize transcript for better matching
+          const normalizeTranscript = (text: string) => {
+            return text
+              .toLowerCase()
+              .replace(/[^\w\s']/g, "") // Remove punctuation except apostrophes
+              .replace(/\s+/g, " ") // Normalize whitespace
+              .trim();
+          };
+
+          const fullTranscript = normalizeTranscript(
+            finalTranscript + interimTranscript
+          );
           setState((prev) => {
             // Only update if transcript has actually changed to prevent infinite loops
             if (
