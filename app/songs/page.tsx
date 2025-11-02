@@ -14,10 +14,12 @@ import { Button } from "@/components/ui/button";
 import { GameModeModal } from "@/components/game-mode-modal";
 import { MultiplayerFriendModal } from "@/components/multiplayer-friend-modal";
 import { PageHeader } from "@/components/page-header";
+import { useUser } from "@clerk/nextjs";
 
 const sortOptions = ["Title", "Artist", "Newest", "Genre"];
 
 function SongsPageContent() {
+  const { isSignedIn, isLoaded } = useUser();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGenre, setSelectedGenre] = useState("All");
   const [selectedDifficulty, setSelectedDifficulty] = useState("All");
@@ -55,7 +57,52 @@ function SongsPageContent() {
   const genres = getAvailableGenres();
   const difficulties = getAvailableDifficulties();
 
-  // Load song durations and recent songs on component mount
+  const fetchRecentSongs = async () => {
+    // Only fetch if user is authenticated
+    if (!isLoaded || !isSignedIn) {
+      setRecentSongsLoading(false);
+      setRecentSongs([]);
+      return;
+    }
+
+    try {
+      setRecentSongsLoading(true);
+      const response = await fetch("/api/user/recent-songs");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          // The API now includes song details, so we can use them directly
+          const recentSongsWithDetails = data.recentSessions.filter(
+            (session: {
+              id: string;
+              songId: string;
+              gameMode: string;
+              status: string;
+              score: number;
+              completedAt: string;
+              song: {
+                id: string;
+                title: string;
+                artist: string;
+                genre?: string;
+                difficulty?: string;
+              } | null;
+            }) => session.song // Filter out any sessions without song data
+          );
+
+          setRecentSongs(recentSongsWithDetails);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch recent songs:", error);
+      // Set empty array on error
+      setRecentSongs([]);
+    } finally {
+      setRecentSongsLoading(false);
+    }
+  };
+
+  // Load song durations on component mount
   useEffect(() => {
     const loadDurations = async () => {
       setLoading(true);
@@ -74,8 +121,24 @@ function SongsPageContent() {
     };
 
     loadDurations();
-    fetchRecentSongs();
   }, [allSongs]);
+
+  // Fetch recent songs when authentication state changes
+  useEffect(() => {
+    if (!isLoaded) {
+      return; // Still loading auth state
+    }
+
+    if (isSignedIn) {
+      // User is signed in, fetch recent songs
+      fetchRecentSongs();
+    } else {
+      // User is not signed in, set loading to false and empty array
+      setRecentSongsLoading(false);
+      setRecentSongs([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn]);
 
   const filteredSongs = songsWithDurations
     .filter((song) => {
@@ -133,42 +196,6 @@ function SongsPageContent() {
   const handleCloseModal = () => {
     setShowModeModal(false);
     setSelectedSong(null);
-  };
-
-  const fetchRecentSongs = async () => {
-    try {
-      setRecentSongsLoading(true);
-      const response = await fetch("/api/user/recent-songs");
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          // The API now includes song details, so we can use them directly
-          const recentSongsWithDetails = data.recentSessions.filter(
-            (session: {
-              id: string;
-              songId: string;
-              gameMode: string;
-              status: string;
-              score: number;
-              completedAt: string;
-              song: {
-                id: string;
-                title: string;
-                artist: string;
-                genre?: string;
-                difficulty?: string;
-              } | null;
-            }) => session.song // Filter out any sessions without song data
-          );
-
-          setRecentSongs(recentSongsWithDetails);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch recent songs:", error);
-    } finally {
-      setRecentSongsLoading(false);
-    }
   };
 
   if (loading) {
