@@ -20,6 +20,8 @@ import {
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ChallengeContext } from "@/components/challenge-context";
+import { ChallengeResults } from "@/components/challenge-results";
 import Link from "next/link";
 import { LyricsDisplayWithFrequency } from "@/components/lyrics-display-with-frequency";
 import { ProtectedRoute } from "@/components/protected-route";
@@ -33,11 +35,14 @@ import { toast } from "@/lib/toast";
 import { useGameplayEvents } from "@/hooks/use-gameplay-events";
 import { useSearchParams } from "next/navigation";
 import { useSimpleKaraoke } from "@/hooks/use-simple-karaoke";
+import { useUser } from "@clerk/nextjs";
 
 function GameplayContent() {
   const searchParams = useSearchParams();
   const songId = searchParams.get("songId") || "bohemian-rhapsody";
+  const challengeId = searchParams.get("challengeId");
 
+  const { user } = useUser();
   const currentSong = getSongById(songId);
   const [isInitializing, setIsInitializing] = useState(true);
   const [showStopModal, setShowStopModal] = useState(false);
@@ -46,6 +51,50 @@ function GameplayContent() {
   const [showScoringModal, setShowScoringModal] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // Challenge state
+  interface ChallengeParticipant {
+    id: string;
+    userId: string;
+    user: {
+      id: string;
+      username: string;
+      firstName: string | null;
+      lastName: string | null;
+      avatar: string | null;
+      level: number;
+    };
+    status: string;
+    score: number | null;
+    acceptedAt: string | null;
+    declinedAt: string | null;
+    completedAt: string | null;
+  }
+
+  interface Challenge {
+    id: string;
+    status: string;
+    expiresAt: string | null;
+    completedAt: string | null;
+    winner: {
+      id: string;
+      username: string;
+      firstName: string | null;
+      lastName: string | null;
+      avatar: string | null;
+    } | null;
+    song: {
+      id: string;
+      customId: string;
+      title: string;
+      artist: string;
+      thumbnail: string | null;
+    };
+    participants: ChallengeParticipant[];
+  }
+
+  const [challenge, setChallenge] = useState<Challenge | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   // Score decay system
   const [lastVoiceActivity, setLastVoiceActivity] = useState<number>(
@@ -213,6 +262,11 @@ function GameplayContent() {
         scoringEvents: scoringEvents,
       });
 
+      // Submit to challenge if in challenge mode
+      if (challengeId && challenge) {
+        await submitChallengeScore(totalScoreWithBonuses);
+      }
+
       // Update user experience - session is confirmed for natural completion
       try {
         const response = await fetch("/api/user/experience", {
@@ -343,6 +397,93 @@ function GameplayContent() {
       setLeaderboardLoading(false);
     }
   }, [currentSong?.id]);
+
+  // Get current user's database ID
+  useEffect(() => {
+    const fetchCurrentUserId = async () => {
+      if (!user?.id) return;
+
+      try {
+        const response = await fetch("/api/user/profile");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.user) {
+            setCurrentUserId(data.user.id);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user ID:", error);
+      }
+    };
+
+    fetchCurrentUserId();
+  }, [user?.id]);
+
+  // Fetch challenge data when challengeId is present
+  useEffect(() => {
+    const fetchChallenge = async () => {
+      if (!challengeId || !currentUserId) return;
+
+      try {
+        const response = await fetch(`/api/challenges/${challengeId}`);
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setChallenge(data.challenge as Challenge);
+
+            // Validate user is participant
+            const isParticipant = data.challenge.participants.some(
+              (p: ChallengeParticipant) => p.userId === currentUserId
+            );
+
+            if (!isParticipant) {
+              toast.error(
+                "Challenge Error",
+                "You are not a participant in this challenge"
+              );
+              return;
+            }
+
+            // Validate song matches
+            if (data.challenge.song.customId !== songId) {
+              toast.error(
+                "Song Mismatch",
+                `This challenge is for "${data.challenge.song.title}", not the current song.`
+              );
+              return;
+            }
+
+            // Validate challenge status
+            const participant = data.challenge.participants.find(
+              (p: ChallengeParticipant) => p.userId === currentUserId
+            );
+
+            if (participant?.status !== "ACCEPTED") {
+              toast.error(
+                "Challenge Not Accepted",
+                "You must accept the challenge before you can play."
+              );
+              return;
+            }
+
+            debugLog("✅ Challenge loaded successfully:", data.challenge);
+          }
+        } else {
+          const errorData = await response.json();
+          toast.error(
+            "Challenge Error",
+            errorData.message || "Failed to load challenge"
+          );
+        }
+      } catch (error) {
+        console.error("Error fetching challenge:", error);
+        toast.error("Challenge Error", "Failed to load challenge data");
+      }
+    };
+
+    fetchChallenge();
+  }, [challengeId, currentUserId, songId]);
 
   // Load song when component mounts
   useEffect(() => {
@@ -504,6 +645,11 @@ function GameplayContent() {
       scoringEvents: scoringEvents,
     });
 
+    // Submit to challenge if in challenge mode
+    if (challengeId && challenge) {
+      await submitChallengeScore(totalScoreWithBonuses);
+    }
+
     // Update user experience - user has explicitly confirmed they want to end the session
     try {
       const response = await fetch("/api/user/experience", {
@@ -545,6 +691,67 @@ function GameplayContent() {
   const cancelStopGame = () => {
     setShowStopModal(false);
   };
+
+  // Submit score to challenge
+  const submitChallengeScore = useCallback(
+    async (totalScore: number) => {
+      if (!challengeId || !challenge) return;
+
+      try {
+        debugLog("🏆 Submitting challenge score:", {
+          challengeId,
+          totalScore,
+        });
+
+        const response = await fetch(`/api/challenges/${challengeId}/submit`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            totalScore,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            debugLog("✅ Challenge score submitted successfully:", data);
+            toast.success(
+              "Score Submitted",
+              "Your score has been submitted to the challenge!"
+            );
+
+            // Refresh challenge data to get updated scores
+            const challengeResponse = await fetch(
+              `/api/challenges/${challengeId}`
+            );
+            if (challengeResponse.ok) {
+              const challengeData = await challengeResponse.json();
+              if (challengeData.success) {
+                setChallenge(challengeData.challenge);
+              }
+            }
+
+            return true;
+          }
+        } else {
+          const errorData = await response.json();
+          debugLog("❌ Challenge score submission failed:", errorData);
+          toast.error(
+            "Submission Failed",
+            errorData.message || "Failed to submit score to challenge"
+          );
+          return false;
+        }
+      } catch (error) {
+        console.error("Error submitting challenge score:", error);
+        toast.error("Submission Error", "Failed to submit score to challenge");
+        return false;
+      }
+    },
+    [challengeId, challenge]
+  );
 
   const playAgain = async () => {
     // Show loading state
@@ -710,97 +917,109 @@ function GameplayContent() {
           </header>
 
           <div className="container mx-auto px-4 py-8">
-            <div className="max-w-2xl mx-auto">
-              {/* Results Card */}
-              <div className="bg-white/80 dark:bg-white/10 rounded-xl p-8 backdrop-blur-sm border border-gray-200 dark:border-gray-700 text-center">
-                <div className="mb-8">
-                  <Trophy className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-                  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                    {gameEndReason === "completed"
-                      ? finalScore.totalScore >= 80
-                        ? "Song Complete - Excellent Performance!"
+            <div className="max-w-2xl mx-auto space-y-6">
+              {/* Challenge Results - Show if in challenge mode */}
+              {challenge && challengeId && currentUserId ? (
+                <ChallengeResults
+                  challenge={challenge}
+                  currentUserId={currentUserId}
+                  currentUserScore={finalScore.totalScore}
+                  onViewDetails={() => {
+                    window.location.href = `/battles`;
+                  }}
+                />
+              ) : (
+                /* Regular Results Card */
+                <div className="bg-white/80 dark:bg-white/10 rounded-xl p-8 backdrop-blur-sm border border-gray-200 dark:border-gray-700 text-center">
+                  <div className="mb-8">
+                    <Trophy className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+                    <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                      {gameEndReason === "completed"
+                        ? finalScore.totalScore >= 80
+                          ? "Song Complete - Excellent Performance!"
+                          : finalScore.totalScore >= 60
+                          ? "Song Complete - Great Job!"
+                          : "Song Complete - Keep Practicing!"
+                        : finalScore.totalScore >= 80
+                        ? "Excellent Performance!"
                         : finalScore.totalScore >= 60
-                        ? "Song Complete - Great Job!"
-                        : "Song Complete - Keep Practicing!"
-                      : finalScore.totalScore >= 80
-                      ? "Excellent Performance!"
-                      : finalScore.totalScore >= 60
-                      ? "Great Job!"
-                      : "Keep Practicing!"}
-                  </h2>
-                  <p className="text-gray-600 dark:text-white/70">
-                    {gameEndReason === "completed"
-                      ? "Congratulations! You completed the entire song!"
-                      : "Here's how you did on this song"}
-                  </p>
-                </div>
-
-                {/* Score Breakdown */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                      {finalScore.totalScore}
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-white/70">
-                      Total Score
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
-                      {finalScore.accuracy}%
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-white/70">
-                      Accuracy
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
-                      {finalScore.timing}%
-                    </div>
-                    <div className="text-sm text-gray-600 dark:text-white/70">
-                      Timing
-                    </div>
-                  </div>
-                </div>
-
-                {/* Performance Feedback */}
-                <div className="mb-8">
-                  <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                      Performance Summary
-                    </h3>
+                        ? "Great Job!"
+                        : "Keep Practicing!"}
+                    </h2>
                     <p className="text-gray-600 dark:text-white/70">
-                      {finalScore.scoringEvents > 0
-                        ? `You scored points on ${finalScore.scoringEvents} events during your performance.`
-                        : "Keep practicing to improve your karaoke skills!"}
+                      {gameEndReason === "completed"
+                        ? "Congratulations! You completed the entire song!"
+                        : "Here's how you did on this song"}
                     </p>
                   </div>
-                </div>
 
-                {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Button
-                    onClick={playAgain}
-                    disabled={isRestarting}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 disabled:opacity-50"
-                  >
-                    <RotateCcw
-                      className={`h-4 w-4 mr-2 ${
-                        isRestarting ? "animate-spin" : ""
-                      }`}
-                    />
-                    {isRestarting ? "Restarting..." : "Play Again"}
-                  </Button>
-                  <Button
-                    onClick={chooseDifferentSong}
-                    variant="outline"
-                    className="border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 px-6 py-3"
-                  >
-                    <Music className="h-4 w-4 mr-2" />
-                    Choose Different Song
-                  </Button>
+                  {/* Score Breakdown */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                        {finalScore.totalScore}
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-white/70">
+                        Total Score
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+                        {finalScore.accuracy}%
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-white/70">
+                        Accuracy
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
+                        {finalScore.timing}%
+                      </div>
+                      <div className="text-sm text-gray-600 dark:text-white/70">
+                        Timing
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Performance Feedback */}
+                  <div className="mb-8">
+                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                        Performance Summary
+                      </h3>
+                      <p className="text-gray-600 dark:text-white/70">
+                        {finalScore.scoringEvents > 0
+                          ? `You scored points on ${finalScore.scoringEvents} events during your performance.`
+                          : "Keep practicing to improve your karaoke skills!"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                    <Button
+                      onClick={playAgain}
+                      disabled={isRestarting}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 disabled:opacity-50"
+                    >
+                      <RotateCcw
+                        className={`h-4 w-4 mr-2 ${
+                          isRestarting ? "animate-spin" : ""
+                        }`}
+                      />
+                      {isRestarting ? "Restarting..." : "Play Again"}
+                    </Button>
+                    <Button
+                      onClick={chooseDifferentSong}
+                      variant="outline"
+                      className="border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-800 px-6 py-3"
+                    >
+                      <Music className="h-4 w-4 mr-2" />
+                      Choose Different Song
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -1309,6 +1528,18 @@ function GameplayContent() {
                 </div>
               )}
             </div>
+
+            {/* Challenge Context - Show if in challenge mode */}
+            {challenge && challengeId && currentUserId && (
+              <div className="lg:col-span-1">
+                <div className="sticky top-4">
+                  <ChallengeContext
+                    challenge={challenge}
+                    currentUserId={currentUserId}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Leaderboard Section */}
             <div className="lg:col-span-1">

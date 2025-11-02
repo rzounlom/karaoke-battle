@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ChallengeStatus } from "@prisma/client";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { processExpiredChallenges } from "@/lib/challenge-expiration";
 
 export async function GET(req: NextRequest) {
   try {
@@ -26,6 +27,13 @@ export async function GET(req: NextRequest) {
         { status: 404 }
       );
     }
+
+    // Process expired challenges (lightweight check on page load)
+    // This ensures expired challenges are handled automatically
+    processExpiredChallenges().catch((error) => {
+      console.error("Error processing expired challenges:", error);
+      // Don't fail the request if expiration check fails
+    });
 
     // Get optional status filter from query params
     const { searchParams } = new URL(req.url);

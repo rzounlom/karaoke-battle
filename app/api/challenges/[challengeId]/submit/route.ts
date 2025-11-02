@@ -162,11 +162,12 @@ export async function POST(
       });
 
       if (winnerId && !challenge.winnerId) {
-        // Award points to winner: 15,000 * (number of other participants who completed)
-        const completedCount = challenge.participants.filter(
-          (p) => p.status === "ACCEPTED" && p.score !== null
+        // Award points to winner: 15,000 * (number of other accepted participants)
+        // Winner gets points for ALL other accepted participants, not just completed ones
+        const acceptedCount = challenge.participants.filter(
+          (p) => p.status === "ACCEPTED"
         ).length;
-        const otherParticipantsCount = Math.max(0, completedCount - 1);
+        const otherParticipantsCount = Math.max(0, acceptedCount - 1);
         const pointsAwarded = 15000 * otherParticipantsCount;
 
         if (pointsAwarded > 0) {
@@ -299,10 +300,11 @@ export async function POST(
         );
         winnerId = winnerParticipant.userId;
 
-        // Calculate points: 15,000 * (number of other participants who completed)
+        // Calculate points: 15,000 * (number of other accepted participants)
+        // Winner gets points for ALL other accepted participants, not just completed ones
         const otherParticipantsCount = Math.max(
           0,
-          completedWithScores.length - 1
+          acceptedParticipants.length - 1
         );
         pointsAwarded = 15000 * otherParticipantsCount;
 
