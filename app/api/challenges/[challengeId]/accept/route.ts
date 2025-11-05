@@ -149,14 +149,15 @@ export async function POST(
     let updatedChallenge;
     if (challenge.status === "PENDING" && acceptedParticipants.length === 1) {
       // This is the first acceptance - activate challenge
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 24);
+      // Set completion deadline: 24 hours from acceptance
+      const completionDeadline = new Date();
+      completionDeadline.setHours(completionDeadline.getHours() + 24);
 
       updatedChallenge = await prisma.challenge.update({
         where: { id: challengeId },
         data: {
           status: "ACCEPTED",
-          expiresAt: expiresAt,
+          expiresAt: completionDeadline, // 24 hours to complete the battle
         },
         include: {
           challenger: {

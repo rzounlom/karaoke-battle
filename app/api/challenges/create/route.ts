@@ -167,12 +167,17 @@ export async function POST(req: Request) {
       }
     }
 
+    // Set acceptance deadline: 3 days from creation
+    const acceptanceDeadline = new Date();
+    acceptanceDeadline.setDate(acceptanceDeadline.getDate() + 3);
+
     // Create new challenge with participants
     const challenge = await prisma.challenge.create({
       data: {
         challengerId: dbUser.id,
         songId: song.id,
         status: "PENDING",
+        expiresAt: acceptanceDeadline, // 3 days to accept the challenge
         participants: {
           create: [
             // Challenger is auto-accepted

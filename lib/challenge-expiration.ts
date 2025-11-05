@@ -10,9 +10,46 @@ import { addExperience } from "@/lib/experience";
  */
 export async function processExpiredChallenges() {
   try {
-    // Find all challenges that have expired but haven't been marked as EXPIRED or COMPLETED
     const now = new Date();
-    const expiredChallenges = await prisma.challenge.findMany({
+    let processed = 0;
+
+    // 1. Handle PENDING challenges that expired (past acceptance deadline - 3 days)
+    // These challenges were never accepted, so no points are awarded
+    const expiredPendingChallenges = await prisma.challenge.findMany({
+      where: {
+        expiresAt: {
+          lte: now,
+        },
+        status: "PENDING",
+        winnerId: null,
+      },
+      include: {
+        participants: true,
+      },
+    });
+
+    for (const challenge of expiredPendingChallenges) {
+      // Check if any participant accepted (shouldn't happen, but safety check)
+      const hasAcceptedParticipants = challenge.participants.some(
+        (p) => p.status === "ACCEPTED" && p.userId !== challenge.challengerId
+      );
+
+      if (!hasAcceptedParticipants) {
+        // No one accepted - mark as expired with no winner
+        await prisma.challenge.update({
+          where: { id: challenge.id },
+          data: {
+            status: "EXPIRED",
+            completedAt: now,
+          },
+        });
+        processed++;
+      }
+    }
+
+    // 2. Handle ACCEPTED/IN_PROGRESS challenges that expired (past completion deadline - 24 hours)
+    // These challenges were accepted, so determine winner based on scores
+    const expiredActiveChallenges = await prisma.challenge.findMany({
       where: {
         expiresAt: {
           lte: now,
@@ -34,13 +71,11 @@ export async function processExpiredChallenges() {
       },
     });
 
-    if (expiredChallenges.length === 0) {
-      return { processed: 0 };
+    if (expiredActiveChallenges.length === 0 && expiredPendingChallenges.length === 0) {
+      return { processed };
     }
 
-    let processed = 0;
-
-    for (const challenge of expiredChallenges) {
+    for (const challenge of expiredActiveChallenges) {
       // Get all accepted participants with scores
       const completedParticipants = challenge.participants.filter(
         (p) => p.score !== null && p.completedAt !== null

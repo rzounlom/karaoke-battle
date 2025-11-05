@@ -115,9 +115,7 @@ export function MultiplayerFriendModal({
           .join(", ");
         toast.success(
           `Challenge sent to ${friendNames}!`,
-          `${
-            selectedFriendIds.size > 1 ? "They" : "They"
-          } have 24 hours to accept.`
+          `They have 3 days to accept the challenge.`
         );
       } else {
         toast.error(data.message || "Failed to create challenge");
