@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 // import { formatTime } from "@/lib/utils";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
+import { useChallengeNotifications } from "@/hooks/use-challenge-notifications";
+import { toast } from "@/lib/toast";
 
 interface Battle {
   id: string;
@@ -67,6 +69,12 @@ export default function BattlesPage() {
     expired: Battle[];
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [acceptingChallengeId, setAcceptingChallengeId] = useState<string | null>(null);
+  
+  const { 
+    loadNotifications: loadChallengeNotifications,
+    removeNotification: removeChallengeNotification 
+  } = useChallengeNotifications();
 
   useEffect(() => {
     loadBattles();
@@ -92,6 +100,61 @@ export default function BattlesPage() {
       console.error("Error loading battles:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAcceptChallenge = async (challengeId: string) => {
+    setAcceptingChallengeId(challengeId);
+    try {
+      const response = await fetch(`/api/challenges/${challengeId}/accept`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Challenge accepted!", data.message);
+        // Immediately remove from notifications UI
+        removeChallengeNotification(challengeId);
+        // Reload battles to update the UI (challenge will move to active tab)
+        await loadBattles();
+        // Refresh notifications to ensure consistency
+        loadChallengeNotifications();
+      } else {
+        toast.error(data.message || "Failed to accept challenge");
+      }
+    } catch (error) {
+      console.error("Error accepting challenge:", error);
+      toast.error("Failed to accept challenge");
+    } finally {
+      setAcceptingChallengeId(null);
+    }
+  };
+
+  const handleDeclineChallenge = async (challengeId: string) => {
+    try {
+      const response = await fetch(`/api/challenges/${challengeId}/decline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Challenge declined");
+        // Immediately remove from notifications UI
+        removeChallengeNotification(challengeId);
+        // Reload battles to update the UI
+        await loadBattles();
+        // Refresh notifications to ensure consistency
+        loadChallengeNotifications();
+      } else {
+        toast.error(data.message || "Failed to decline challenge");
+      }
+    } catch (error) {
+      console.error("Error declining challenge:", error);
+      toast.error("Failed to decline challenge");
     }
   };
 
@@ -170,9 +233,14 @@ export default function BattlesPage() {
       .join(", ");
   };
 
-  const renderBattleCard = (battle: Battle, showActions: boolean = false) => {
+  const renderBattleCard = (
+    battle: Battle,
+    showActions: boolean = false,
+    isPendingReceived: boolean = false
+  ) => {
     const participantNames = getParticipantNames(battle);
     const hasScores = battle.participants.some((p) => p.score !== null);
+    const isAccepting = acceptingChallengeId === battle.id;
 
     return (
       <Card key={battle.id} className="hover:shadow-md transition-shadow">
@@ -240,7 +308,35 @@ export default function BattlesPage() {
             </div>
           )}
 
-          {showActions && battle.status === "ACCEPTED" && (
+          {/* Accept/Decline buttons for pending received challenges */}
+          {isPendingReceived && battle.status === "PENDING" && (
+            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => handleAcceptChallenge(battle.id)}
+                  disabled={isAccepting}
+                  className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600"
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  {isAccepting ? "Accepting..." : "Accept"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDeclineChallenge(battle.id)}
+                  disabled={isAccepting}
+                  className="flex-1"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Decline
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Play Battle button for accepted challenges */}
+          {showActions && (battle.status === "ACCEPTED" || battle.status === "IN_PROGRESS") && (
             <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
               <Link
                 href={`/gameplay?songId=${
@@ -356,7 +452,7 @@ export default function BattlesPage() {
                   </h3>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {battles.pendingReceived.map((battle) =>
-                      renderBattleCard(battle)
+                      renderBattleCard(battle, false, true)
                     )}
                   </div>
                 </div>

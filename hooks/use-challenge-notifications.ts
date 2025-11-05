@@ -90,6 +90,16 @@ export function useChallengeNotifications() {
     setUnreadCount(0);
   };
 
+  const removeNotification = (challengeId: string) => {
+    setNotifications((prev) => {
+      const filtered = prev.filter((n) => n.id !== challengeId);
+      // Update unread count to reflect only pending received notifications
+      const receivedCount = filtered.filter((n) => n.status === "pending_received").length;
+      setUnreadCount(receivedCount);
+      return filtered;
+    });
+  };
+
   useEffect(() => {
     loadNotifications();
 
@@ -104,6 +114,7 @@ export function useChallengeNotifications() {
     unreadCount,
     loadNotifications,
     markAsRead,
+    removeNotification,
   };
 }
 

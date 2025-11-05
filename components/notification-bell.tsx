@@ -29,7 +29,8 @@ export function NotificationBell() {
     notifications: challengeNotifications, 
     unreadCount: challengeUnreadCount, 
     markAsRead: markChallengesRead, 
-    loadNotifications: loadChallengeNotifications 
+    loadNotifications: loadChallengeNotifications,
+    removeNotification: removeChallengeNotification
   } = useChallengeNotifications();
   
   const totalUnreadCount = friendUnreadCount + challengeUnreadCount;
@@ -75,7 +76,9 @@ export function NotificationBell() {
       const data = await response.json();
 
       if (data.success) {
-        // Refresh notifications
+        // Immediately remove from notifications UI
+        removeChallengeNotification(challengeId);
+        // Refresh notifications to ensure consistency
         loadChallengeNotifications();
         // Close the notification dropdown
         setIsOpen(false);
