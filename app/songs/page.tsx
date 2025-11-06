@@ -217,15 +217,15 @@ function SongsPageContent() {
           <p className="text-gray-600 dark:text-gray-400 mb-2">
             When you click a song, you&apos;ll see three game modes:
           </p>
-          <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 space-y-1">
-            <li>
+          <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 space-y-1 text-left">
+            <li className="text-left">
               <strong>Single Player:</strong> Practice on your own and improve
               your score
             </li>
-            <li>
+            <li className="text-left">
               <strong>Multiplayer:</strong> Challenge your friends to a battle
             </li>
-            <li>
+            <li className="text-left">
               <strong>Tournament:</strong> Compete in organized competitions
             </li>
           </ul>

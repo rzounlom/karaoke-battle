@@ -9,6 +9,7 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Settings,
   Square,
   Trophy,
   XCircle,
@@ -18,6 +19,7 @@ import {
   GameplayEventDisplay,
 } from "@/components/gameplay-event-display";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
 
 import { Button } from "@/components/ui/button";
 import { ChallengeContext } from "@/components/challenge-context";
@@ -51,6 +53,11 @@ function GameplayContent() {
   const [showScoringModal, setShowScoringModal] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
   const [isFullScreen, setIsFullScreen] = useState(false);
+
+  // Wizard state
+  const [runWizard, setRunWizard] = useState(false);
+  const [wizardLoading, setWizardLoading] = useState(true);
+  const [devModeWizardEnabled, setDevModeWizardEnabled] = useState(false);
 
   // Challenge state
   interface ChallengeParticipant {
@@ -485,6 +492,40 @@ function GameplayContent() {
     fetchChallenge();
   }, [challengeId, currentUserId, songId]);
 
+  // Check if user has completed first session for wizard
+  useEffect(() => {
+    const checkFirstSessionStatus = async () => {
+      try {
+        const response = await fetch("/api/user/first-session");
+        const data = await response.json();
+        if (data.success) {
+          // In dev mode, check localStorage for override
+          if (process.env.NODE_ENV === "development") {
+            const devOverride = localStorage.getItem("dev-wizard-enabled");
+            if (devOverride === "true") {
+              setRunWizard(true);
+              setDevModeWizardEnabled(true);
+            } else if (!data.hasCompletedFirstSession) {
+              setRunWizard(true);
+            }
+          } else if (!data.hasCompletedFirstSession) {
+            setRunWizard(true);
+          }
+        }
+      } catch (error) {
+        console.error("Error checking first session status:", error);
+      } finally {
+        setWizardLoading(false);
+      }
+    };
+
+    if (user) {
+      checkFirstSessionStatus();
+    } else {
+      setWizardLoading(false);
+    }
+  }, [user]);
+
   // Load song when component mounts
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -802,6 +843,134 @@ function GameplayContent() {
   };
 
   // Full-screen functionality
+  // Wizard steps
+  const wizardSteps: Step[] = [
+    {
+      target: "[data-tour='rules-button']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Rules Button</h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            Click the Rules button to learn how the scoring system works, including accuracy, timing, and bonus points.
+          </p>
+        </div>
+      ),
+      placement: "bottom",
+      disableBeacon: true,
+    },
+    {
+      target: "[data-tour='scoring-button']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Scoring Button</h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            Click the Scoring button to see detailed information about how points are calculated, XP gains, and level progression.
+          </p>
+        </div>
+      ),
+      placement: "bottom",
+    },
+    {
+      target: "[data-tour='score-display']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Score Tracking</h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            Your current score is displayed here in real-time. Watch it increase as you sing accurately and hit the right notes!
+          </p>
+        </div>
+      ),
+      placement: "bottom",
+    },
+    {
+      target: "[data-tour='user-profile']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Your Ranking & XP</h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            View your current level, XP progress, and ranking. Complete songs to earn XP and level up!
+          </p>
+        </div>
+      ),
+      placement: "left",
+    },
+    {
+      target: "[data-tour='theme-toggle']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Light/Dark Mode</h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            Toggle between light and dark mode to customize your viewing experience. Choose what works best for you!
+          </p>
+        </div>
+      ),
+      placement: "left",
+    },
+    {
+      target: "[data-tour='leaderboard']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Leaderboard</h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            See how you rank against other players for this song. Your best score and rank will be displayed at the bottom of the leaderboard.
+          </p>
+        </div>
+      ),
+      placement: "left",
+    },
+    {
+      target: "[data-tour='lyrics-display']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Gameplay Mechanics</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-2">
+            This is where the magic happens! The lyrics display shows:
+          </p>
+          <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 space-y-1 text-left">
+            <li className="text-left">Current lyrics to sing</li>
+            <li className="text-left">Upcoming lyrics</li>
+            <li className="text-left">Visual feedback for your voice</li>
+            <li className="text-left">Real-time frequency visualization</li>
+          </ul>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Sing along with the music and watch your score increase!
+          </p>
+        </div>
+      ),
+      placement: "top",
+    },
+    {
+      target: "[data-tour='fullscreen-button']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Full-Screen Mode</h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            Click this button to enter full-screen mode for an immersive karaoke experience. Press Escape or click again to exit full-screen.
+          </p>
+        </div>
+      ),
+      placement: "top",
+    },
+  ];
+
+  // Handle wizard callback
+  const handleJoyrideCallback = useCallback(
+    (data: CallBackProps) => {
+      const { status } = data;
+
+      if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+        setRunWizard(false);
+        // Mark first session as completed (unless in dev mode with override)
+        if (!devModeWizardEnabled && user) {
+          fetch("/api/user/first-session", { method: "POST" }).catch(
+            console.error
+          );
+        }
+      }
+    },
+    [devModeWizardEnabled, user]
+  );
+
   const toggleFullScreen = () => {
     setIsFullScreen(!isFullScreen);
   };
@@ -1245,6 +1414,7 @@ function GameplayContent() {
               onClick={() => setShowHelpModal(true)}
               className="text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50"
               title="How Scoring Works"
+              data-tour="rules-button"
             >
               <HelpCircle className="h-4 w-4 mr-2" />
               Rules
@@ -1255,11 +1425,15 @@ function GameplayContent() {
               onClick={() => setShowScoringModal(true)}
               className="text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50"
               title="Scoring & Levels"
+              data-tour="scoring-button"
             >
               <Trophy className="h-4 w-4 mr-2" />
               Scoring
             </Button>
-            <div className="text-center text-gray-900 dark:text-white">
+            <div
+              className="text-center text-gray-900 dark:text-white"
+              data-tour="score-display"
+            >
               <div className="text-2xl font-bold">{score}</div>
               <div className="text-sm text-gray-600 dark:text-white/70">
                 Score
@@ -1273,8 +1447,12 @@ function GameplayContent() {
                 <div className="text-xs">Streak</div>
               </div>
             )}
-            <UserProfile />
-            <ThemeToggle />
+            <div data-tour="user-profile">
+              <UserProfile />
+            </div>
+            <div data-tour="theme-toggle">
+              <ThemeToggle />
+            </div>
           </div>
         </header>
 
@@ -1357,7 +1535,10 @@ function GameplayContent() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-gradient-to-br from-purple-900 via-pink-900 to-indigo-900 rounded-xl min-h-[400px] backdrop-blur-sm border border-purple-200 dark:border-purple-700">
+                <div
+                  className="bg-gradient-to-br from-purple-900 via-pink-900 to-indigo-900 rounded-xl min-h-[400px] backdrop-blur-sm border border-purple-200 dark:border-purple-700"
+                  data-tour="lyrics-display"
+                >
                   <LyricsDisplayWithFrequency
                     currentLyric={currentLyric}
                     upcomingLyrics={upcomingLyrics}
@@ -1391,6 +1572,7 @@ function GameplayContent() {
                     title={
                       isFullScreen ? "Exit Full Screen" : "Enter Full Screen"
                     }
+                    data-tour="fullscreen-button"
                   >
                     {isFullScreen ? (
                       <Minimize className="h-4 w-4" />
@@ -1542,7 +1724,7 @@ function GameplayContent() {
             )}
 
             {/* Leaderboard Section */}
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1" data-tour="leaderboard">
               <div className="bg-white/80 dark:bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-gray-200 dark:border-gray-700 sticky top-4">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -1656,6 +1838,67 @@ function GameplayContent() {
 
         {/* Gameplay Events Display */}
         <GameplayEventDisplay events={events} />
+
+        {/* Dev Mode Wizard Toggle */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="fixed bottom-4 right-4 z-50">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const newState = !devModeWizardEnabled;
+                setDevModeWizardEnabled(newState);
+                localStorage.setItem("dev-wizard-enabled", String(newState));
+                setRunWizard(newState);
+              }}
+              className="bg-white dark:bg-gray-800 shadow-lg"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              {devModeWizardEnabled ? "Disable" : "Enable"} Wizard
+            </Button>
+          </div>
+        )}
+
+        {/* Wizard */}
+        {!wizardLoading && (
+          <Joyride
+            steps={wizardSteps}
+            run={runWizard}
+            continuous={true}
+            showProgress={true}
+            showSkipButton={true}
+            callback={handleJoyrideCallback}
+            styles={{
+              options: {
+                primaryColor: "#9333ea", // purple-600
+                zIndex: 10000,
+              },
+              tooltip: {
+                borderRadius: "12px",
+                padding: "20px",
+              },
+              buttonNext: {
+                backgroundColor: "#9333ea",
+                borderRadius: "8px",
+                padding: "10px 20px",
+              },
+              buttonBack: {
+                color: "#6b7280",
+                marginRight: "10px",
+              },
+              buttonSkip: {
+                color: "#6b7280",
+              },
+            }}
+            locale={{
+              back: "Back",
+              close: "Close",
+              last: "Finish",
+              next: "Next",
+              skip: "Skip Tour",
+            }}
+          />
+        )}
 
         {/* Stop Confirmation Modal */}
         {showStopModal && (
