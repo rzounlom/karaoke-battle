@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { processExpiredChallenges } from "@/lib/challenge-expiration";
 
 export async function POST(
   req: NextRequest,
@@ -37,6 +38,13 @@ export async function POST(
         { status: 404 }
       );
     }
+
+    // Process expired challenges before handling acceptance
+    // This ensures expired challenges are handled when users interact with challenges
+    processExpiredChallenges().catch((error) => {
+      console.error("Error processing expired challenges:", error);
+      // Don't fail the request if expiration check fails
+    });
 
     // Find the challenge with participants
     const challenge = await prisma.challenge.findUnique({

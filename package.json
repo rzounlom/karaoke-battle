@@ -15,6 +15,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
+    "db:migrate-expiration": "tsx scripts/update-pending-challenges-expiration.ts",
     "postinstall": "prisma generate",
     "prepare": "husky install"
   },

@@ -3,10 +3,13 @@ import { addExperience } from "@/lib/experience";
 
 /**
  * Check and process expired challenges
- * This should be called:
- * - On challenge submission
- * - When loading the battles page
- * - By a cron job if available
+ * This is called on:
+ * - When loading the battles page (/api/challenges GET)
+ * - When accepting a challenge (/api/challenges/[id]/accept POST)
+ * - When submitting a score (/api/challenges/[id]/submit POST)
+ * 
+ * This ensures expired challenges are processed whenever users interact with challenges,
+ * providing a consistent "best effort" approach without requiring external cron jobs.
  */
 export async function processExpiredChallenges() {
   try {

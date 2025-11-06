@@ -139,51 +139,61 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // Helper function to format challenge for response
+    const formatChallenge = (c: (typeof challengesWithUserStatus)[0]) => ({
+      id: c.id,
+      challenger: c.challenger,
+      song: c.song,
+      status: c.status,
+      winner: c.winner,
+      expiresAt: c.expiresAt,
+      completedAt: c.completedAt,
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      participants: c.participants.map((p) => ({
+        id: p.id,
+        userId: p.userId,
+        user: p.user,
+        status: p.status,
+        score: p.score,
+        acceptedAt: p.acceptedAt,
+        declinedAt: p.declinedAt,
+        completedAt: p.completedAt,
+      })),
+    });
+
     // Separate challenges into different categories
-    const pendingReceived = challengesWithUserStatus.filter(
-      (c) => !c.isChallenger && c.userParticipantStatus === "PENDING" && c.status === "PENDING"
-    );
-    const pendingSent = challengesWithUserStatus.filter(
-      (c) => c.isChallenger && c.status === "PENDING"
-    );
-    const active = challengesWithUserStatus.filter(
-      (c) =>
-        (c.status === "ACCEPTED" || c.status === "IN_PROGRESS") &&
-        c.userParticipantStatus === "ACCEPTED"
-    );
-    const completed = challengesWithUserStatus.filter(
-      (c) => c.status === "COMPLETED"
-    );
-    const declined = challengesWithUserStatus.filter(
-      (c) => c.userParticipantStatus === "DECLINED"
-    );
-    const expired = challengesWithUserStatus.filter(
-      (c) => c.status === "EXPIRED"
-    );
+    const pendingReceived = challengesWithUserStatus
+      .filter(
+        (c) =>
+          !c.isChallenger &&
+          c.userParticipantStatus === "PENDING" &&
+          c.status === "PENDING"
+      )
+      .map(formatChallenge);
+    const pendingSent = challengesWithUserStatus
+      .filter((c) => c.isChallenger && c.status === "PENDING")
+      .map(formatChallenge);
+    const active = challengesWithUserStatus
+      .filter(
+        (c) =>
+          (c.status === "ACCEPTED" || c.status === "IN_PROGRESS") &&
+          c.userParticipantStatus === "ACCEPTED"
+      )
+      .map(formatChallenge);
+    const completed = challengesWithUserStatus
+      .filter((c) => c.status === "COMPLETED")
+      .map(formatChallenge);
+    const declined = challengesWithUserStatus
+      .filter((c) => c.userParticipantStatus === "DECLINED")
+      .map(formatChallenge);
+    const expired = challengesWithUserStatus
+      .filter((c) => c.status === "EXPIRED")
+      .map(formatChallenge);
 
     return NextResponse.json({
       success: true,
-      challenges: challenges.map((c) => ({
-        id: c.id,
-        challenger: c.challenger,
-        song: c.song,
-        status: c.status,
-        winner: c.winner,
-        expiresAt: c.expiresAt,
-        completedAt: c.completedAt,
-        createdAt: c.createdAt,
-        updatedAt: c.updatedAt,
-        participants: c.participants.map((p) => ({
-          id: p.id,
-          userId: p.userId,
-          user: p.user,
-          status: p.status,
-          score: p.score,
-          acceptedAt: p.acceptedAt,
-          declinedAt: p.declinedAt,
-          completedAt: p.completedAt,
-        })),
-      })),
+      challenges: challengesWithUserStatus.map(formatChallenge),
       pendingReceived,
       pendingSent,
       active,

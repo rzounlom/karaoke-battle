@@ -69,11 +69,13 @@ export default function BattlesPage() {
     expired: Battle[];
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [acceptingChallengeId, setAcceptingChallengeId] = useState<string | null>(null);
-  
-  const { 
+  const [acceptingChallengeId, setAcceptingChallengeId] = useState<
+    string | null
+  >(null);
+
+  const {
     loadNotifications: loadChallengeNotifications,
-    removeNotification: removeChallengeNotification 
+    removeNotification: removeChallengeNotification,
   } = useChallengeNotifications();
 
   useEffect(() => {
@@ -233,6 +235,30 @@ export default function BattlesPage() {
       .join(", ");
   };
 
+  const getTimeRemaining = (expiresAt: string | null) => {
+    if (!expiresAt) return null;
+
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diff = expiry.getTime() - now.getTime();
+
+    if (diff <= 0) return "Expired";
+
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours > 24) {
+      const days = Math.floor(hours / 24);
+      return `${days} day${days > 1 ? "s" : ""} remaining`;
+    } else if (hours > 0) {
+      return `${hours} hour${hours > 1 ? "s" : ""} ${minutes} minute${
+        minutes !== 1 ? "s" : ""
+      } remaining`;
+    } else {
+      return `${minutes} minute${minutes !== 1 ? "s" : ""} remaining`;
+    }
+  };
+
   const renderBattleCard = (
     battle: Battle,
     showActions: boolean = false,
@@ -308,6 +334,21 @@ export default function BattlesPage() {
             </div>
           )}
 
+          {/* Expiration date for pending battles */}
+          {battle.status === "PENDING" && battle.expiresAt && (
+            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center space-x-2 text-sm">
+                <Clock className="h-4 w-4 text-orange-500" />
+                <span className="text-gray-700 dark:text-gray-300 font-medium">
+                  {getTimeRemaining(battle.expiresAt)}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Expires: {new Date(battle.expiresAt).toLocaleString()}
+              </p>
+            </div>
+          )}
+
           {/* Accept/Decline buttons for pending received challenges */}
           {isPendingReceived && battle.status === "PENDING" && (
             <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
@@ -335,24 +376,43 @@ export default function BattlesPage() {
             </div>
           )}
 
+          {/* Expiration date for active battles */}
+          {showActions &&
+            (battle.status === "ACCEPTED" || battle.status === "IN_PROGRESS") &&
+            battle.expiresAt && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center space-x-2 text-sm">
+                  <Clock className="h-4 w-4 text-orange-500" />
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">
+                    {getTimeRemaining(battle.expiresAt)}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Expires: {new Date(battle.expiresAt).toLocaleString()}
+                </p>
+              </div>
+            )}
+
           {/* Play Battle button for accepted challenges */}
-          {showActions && (battle.status === "ACCEPTED" || battle.status === "IN_PROGRESS") && (
-            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-              <Link
-                href={`/gameplay?songId=${
-                  battle.song.customId || battle.song.id
-                }&battleId=${battle.id}`}
-              >
-                <Button
-                  size="sm"
-                  className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+          {showActions &&
+            (battle.status === "ACCEPTED" ||
+              battle.status === "IN_PROGRESS") && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                <Link
+                  href={`/gameplay?songId=${
+                    battle.song.customId || battle.song.id
+                  }&battleId=${battle.id}`}
                 >
-                  <Sword className="h-4 w-4 mr-2" />
-                  Play Battle
-                </Button>
-              </Link>
-            </div>
-          )}
+                  <Button
+                    size="sm"
+                    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                  >
+                    <Sword className="h-4 w-4 mr-2" />
+                    Play Battle
+                  </Button>
+                </Link>
+              </div>
+            )}
 
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
             {new Date(battle.createdAt).toLocaleDateString()} •{" "}
