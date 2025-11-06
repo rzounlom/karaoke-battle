@@ -199,7 +199,10 @@ export function GameModeModal({
 
       {/* Game Mode Selection Modal */}
       {!showAuthPrompt && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div 
+          className="bg-white dark:bg-gray-800 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+          data-tour="mode-selection"
+        >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
             <div>

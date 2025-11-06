@@ -1,6 +1,7 @@
 "use client";
 
-import { Clock, History, Mic, Play, Search } from "lucide-react";
+import { Clock, History, Mic, Play, Search, Settings } from "lucide-react";
+import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
 import {
   SongWithDuration,
   getAllSongs,
@@ -8,7 +9,7 @@ import {
   getAvailableGenres,
   loadSongDurations,
 } from "@/lib/songs-data";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { GameModeModal } from "@/components/game-mode-modal";
@@ -51,6 +52,12 @@ function SongsPageContent() {
     }>
   >([]);
   const [recentSongsLoading, setRecentSongsLoading] = useState(true);
+
+  // Wizard state
+  const [runWizard, setRunWizard] = useState(false);
+  const [wizardLoading, setWizardLoading] = useState(true);
+  const [devModeWizardEnabled, setDevModeWizardEnabled] = useState(false);
+  const [showModalWizard, setShowModalWizard] = useState(false);
 
   // Get data from the new songs system
   const allSongs = getAllSongs();
@@ -132,13 +139,102 @@ function SongsPageContent() {
     if (isSignedIn) {
       // User is signed in, fetch recent songs
       fetchRecentSongs();
+      // Check if user has completed first session
+      checkFirstSessionStatus();
     } else {
       // User is not signed in, set loading to false and empty array
       setRecentSongsLoading(false);
       setRecentSongs([]);
+      setWizardLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, isSignedIn]);
+
+  // Check if user has completed first session
+  const checkFirstSessionStatus = async () => {
+    try {
+      const response = await fetch("/api/user/first-session");
+      const data = await response.json();
+      if (data.success) {
+        // In dev mode, check localStorage for override
+        if (process.env.NODE_ENV === "development") {
+          const devOverride = localStorage.getItem("dev-wizard-enabled");
+          if (devOverride === "true") {
+            setRunWizard(true);
+            setDevModeWizardEnabled(true);
+          } else if (!data.hasCompletedFirstSession) {
+            setRunWizard(true);
+          }
+        } else if (!data.hasCompletedFirstSession) {
+          setRunWizard(true);
+        }
+      }
+    } catch (error) {
+      console.error("Error checking first session status:", error);
+    } finally {
+      setWizardLoading(false);
+    }
+  };
+
+  // Wizard steps for main page (steps 1-2)
+  const mainWizardSteps: Step[] = [
+    {
+      target: "[data-tour='search']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Search for Songs</h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            Use the search bar to find songs by title or artist. You can also
+            filter by genre and difficulty using the dropdowns below.
+          </p>
+        </div>
+      ),
+      placement: "bottom",
+      disableBeacon: true,
+    },
+    {
+      target: "[data-tour='song-card']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Select a Song</h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            Click on any song card to open the game mode selection. Each card
+            shows the song title, artist, difficulty, and duration.
+          </p>
+        </div>
+      ),
+      placement: "top",
+    },
+  ];
+
+  // Wizard step for modal (step 3)
+  const modalWizardStep: Step[] = [
+    {
+      target: "[data-tour='mode-selection']",
+      content: (
+        <div>
+          <h3 className="font-bold text-lg mb-2">Choose Your Game Mode</h3>
+          <p className="text-gray-600 dark:text-gray-400 mb-2">
+            When you click a song, you&apos;ll see three game modes:
+          </p>
+          <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400 space-y-1">
+            <li>
+              <strong>Single Player:</strong> Practice on your own and improve
+              your score
+            </li>
+            <li>
+              <strong>Multiplayer:</strong> Challenge your friends to a battle
+            </li>
+            <li>
+              <strong>Tournament:</strong> Compete in organized competitions
+            </li>
+          </ul>
+        </div>
+      ),
+      placement: "center",
+      disableBeacon: true,
+    },
+  ];
 
   const filteredSongs = songsWithDurations
     .filter((song) => {
@@ -187,6 +283,69 @@ function SongsPageContent() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
+
+  // Handle wizard callback for main steps - defined after filteredSongs
+  const handleMainWizardCallback = useCallback(
+    (data: CallBackProps) => {
+      const { status, index, type, action } = data;
+
+      // If we're moving forward from step 2, open the modal for step 3
+      if (
+        type === "step:after" &&
+        typeof index === "number" &&
+        action === "next" &&
+        index === 1 &&
+        filteredSongs.length > 0 &&
+        !showModeModal
+      ) {
+        // Stop main wizard and open modal for step 3
+        setRunWizard(false);
+        setTimeout(() => {
+          const firstSong = filteredSongs[0];
+          setSelectedSong(firstSong);
+          setShowModeModal(true);
+          // Start modal wizard after modal renders
+          setTimeout(() => {
+            setShowModalWizard(true);
+          }, 500);
+        }, 300);
+      }
+
+      if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+        setRunWizard(false);
+        // Mark first session as completed (unless in dev mode with override)
+        if (!devModeWizardEnabled && isSignedIn) {
+          fetch("/api/user/first-session", { method: "POST" }).catch(
+            console.error
+          );
+        }
+      }
+    },
+    [devModeWizardEnabled, isSignedIn, filteredSongs, showModeModal]
+  );
+
+  // Handle wizard callback for modal step
+  const handleModalWizardCallback = useCallback(
+    (data: CallBackProps) => {
+      const { status } = data;
+
+      if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+        setShowModalWizard(false);
+        // Close modal if it was opened for the wizard
+        if (showModeModal && selectedSong) {
+          setShowModeModal(false);
+          setSelectedSong(null);
+        }
+        // Mark first session as completed (unless in dev mode with override)
+        if (!devModeWizardEnabled && isSignedIn) {
+          fetch("/api/user/first-session", { method: "POST" }).catch(
+            console.error
+          );
+        }
+      }
+    },
+    [devModeWizardEnabled, isSignedIn, showModeModal, selectedSong]
+  );
 
   const handleSongSelect = (song: SongWithDuration) => {
     setSelectedSong(song);
@@ -247,7 +406,7 @@ function SongsPageContent() {
           <div className="lg:col-span-2 space-y-6">
             {/* Search and Filters */}
             <div className="space-y-4">
-              <div className="relative">
+              <div className="relative" data-tour="search">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
@@ -304,9 +463,10 @@ function SongsPageContent() {
 
             {/* Song Grid */}
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredSongs.map((song) => (
+              {filteredSongs.map((song, index) => (
                 <div
                   key={song.id}
+                  data-tour={index === 0 ? "song-card" : undefined}
                   onClick={() => handleSongSelect(song)}
                   className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border-2 cursor-pointer transition-all hover:shadow-lg hover:scale-[1.02] border-gray-200 dark:border-gray-700 hover:border-purple-300"
                 >
@@ -514,6 +674,110 @@ function SongsPageContent() {
           songId={selectedSong.id}
           songTitle={selectedSong.title}
           songArtist={selectedSong.artist}
+        />
+      )}
+
+      {/* Dev Mode Wizard Toggle */}
+      {process.env.NODE_ENV === "development" && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const newState = !devModeWizardEnabled;
+              setDevModeWizardEnabled(newState);
+              localStorage.setItem("dev-wizard-enabled", String(newState));
+              setRunWizard(newState);
+            }}
+            className="bg-white dark:bg-gray-800 shadow-lg"
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            {devModeWizardEnabled ? "Disable" : "Enable"} Wizard
+          </Button>
+        </div>
+      )}
+
+      {/* Main Wizard (Steps 1-2) */}
+      {!wizardLoading && (
+        <Joyride
+          steps={mainWizardSteps}
+          run={runWizard && !showModeModal}
+          continuous={true}
+          showProgress={true}
+          showSkipButton={true}
+          callback={handleMainWizardCallback}
+          spotlightClicks={true}
+          styles={{
+            options: {
+              primaryColor: "#9333ea", // purple-600
+              zIndex: 10000,
+            },
+            tooltip: {
+              borderRadius: "12px",
+              padding: "20px",
+            },
+            buttonNext: {
+              backgroundColor: "#9333ea",
+              borderRadius: "8px",
+              padding: "10px 20px",
+            },
+            buttonBack: {
+              color: "#6b7280",
+              marginRight: "10px",
+            },
+            buttonSkip: {
+              color: "#6b7280",
+            },
+          }}
+          locale={{
+            back: "Back",
+            close: "Close",
+            last: "Next",
+            next: "Next",
+            skip: "Skip Tour",
+          }}
+        />
+      )}
+
+      {/* Modal Wizard (Step 3) */}
+      {showModeModal && !wizardLoading && (
+        <Joyride
+          steps={modalWizardStep}
+          run={showModalWizard}
+          continuous={true}
+          showProgress={false}
+          showSkipButton={true}
+          callback={handleModalWizardCallback}
+          spotlightClicks={true}
+          styles={{
+            options: {
+              primaryColor: "#9333ea", // purple-600
+              zIndex: 10001, // Higher than modal
+            },
+            tooltip: {
+              borderRadius: "12px",
+              padding: "20px",
+            },
+            buttonNext: {
+              backgroundColor: "#9333ea",
+              borderRadius: "8px",
+              padding: "10px 20px",
+            },
+            buttonBack: {
+              color: "#6b7280",
+              marginRight: "10px",
+            },
+            buttonSkip: {
+              color: "#6b7280",
+            },
+          }}
+          locale={{
+            back: "Back",
+            close: "Close",
+            last: "Finish",
+            next: "Next",
+            skip: "Skip Tour",
+          }}
         />
       )}
     </div>
