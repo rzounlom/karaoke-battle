@@ -58,6 +58,7 @@ function GameplayContent() {
   const [runWizard, setRunWizard] = useState(false);
   const [wizardLoading, setWizardLoading] = useState(true);
   const [devModeWizardEnabled, setDevModeWizardEnabled] = useState(false);
+  const [wizardStepIndex, setWizardStepIndex] = useState(0);
 
   // Challenge state
   interface ChallengeParticipant {
@@ -505,11 +506,14 @@ function GameplayContent() {
             if (devOverride === "true") {
               setRunWizard(true);
               setDevModeWizardEnabled(true);
+              setWizardStepIndex(0);
             } else if (!data.hasCompletedFirstSession) {
               setRunWizard(true);
+              setWizardStepIndex(0);
             }
           } else if (!data.hasCompletedFirstSession) {
             setRunWizard(true);
+            setWizardStepIndex(0);
           }
         }
       } catch (error) {
@@ -956,10 +960,26 @@ function GameplayContent() {
   // Handle wizard callback
   const handleWizardCallback = useCallback(
     (data: { status: "finished" | "skipped"; index: number }) => {
-      const { status } = data;
+      const { status, index } = data;
 
-      if (status === "finished" || status === "skipped") {
+      // Update step index for normal progression
+      if (status === "finished" && index < wizardSteps.length - 1) {
+        setWizardStepIndex(index + 1);
+      }
+
+      if (status === "finished" && index === wizardSteps.length - 1) {
+        // Finished last step
         setRunWizard(false);
+        setWizardStepIndex(0);
+        // Mark first session as completed (unless in dev mode with override)
+        if (!devModeWizardEnabled && user) {
+          fetch("/api/user/first-session", { method: "POST" }).catch(
+            console.error
+          );
+        }
+      } else if (status === "skipped") {
+        setRunWizard(false);
+        setWizardStepIndex(0);
         // Mark first session as completed (unless in dev mode with override)
         if (!devModeWizardEnabled && user) {
           fetch("/api/user/first-session", { method: "POST" }).catch(
@@ -968,7 +988,7 @@ function GameplayContent() {
         }
       }
     },
-    [devModeWizardEnabled, user]
+    [devModeWizardEnabled, user, wizardSteps.length]
   );
 
   const toggleFullScreen = () => {
@@ -1850,6 +1870,7 @@ function GameplayContent() {
                 setDevModeWizardEnabled(newState);
                 localStorage.setItem("dev-wizard-enabled", String(newState));
                 setRunWizard(newState);
+                setWizardStepIndex(0);
               }}
               className="bg-white dark:bg-gray-800 shadow-lg"
             >
@@ -1867,6 +1888,7 @@ function GameplayContent() {
             continuous={true}
             showProgress={true}
             showSkipButton={true}
+            stepIndex={wizardStepIndex}
             onCallback={handleWizardCallback}
           />
         )}
