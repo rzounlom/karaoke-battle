@@ -19,7 +19,7 @@ import {
   GameplayEventDisplay,
 } from "@/components/gameplay-event-display";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
+import { CustomWizard, WizardStep } from "@/components/custom-wizard";
 
 import { Button } from "@/components/ui/button";
 import { ChallengeContext } from "@/components/challenge-context";
@@ -844,7 +844,7 @@ function GameplayContent() {
 
   // Full-screen functionality
   // Wizard steps
-  const wizardSteps: Step[] = [
+  const wizardSteps: WizardStep[] = [
     {
       target: "[data-tour='rules-button']",
       content: (
@@ -954,11 +954,11 @@ function GameplayContent() {
   ];
 
   // Handle wizard callback
-  const handleJoyrideCallback = useCallback(
-    (data: CallBackProps) => {
+  const handleWizardCallback = useCallback(
+    (data: { status: "finished" | "skipped"; index: number }) => {
       const { status } = data;
 
-      if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+      if (status === "finished" || status === "skipped") {
         setRunWizard(false);
         // Mark first session as completed (unless in dev mode with override)
         if (!devModeWizardEnabled && user) {
@@ -1861,42 +1861,13 @@ function GameplayContent() {
 
         {/* Wizard */}
         {!wizardLoading && (
-          <Joyride
+          <CustomWizard
             steps={wizardSteps}
             run={runWizard}
             continuous={true}
             showProgress={true}
             showSkipButton={true}
-            callback={handleJoyrideCallback}
-            styles={{
-              options: {
-                primaryColor: "#9333ea", // purple-600
-                zIndex: 10000,
-              },
-              tooltip: {
-                borderRadius: "12px",
-                padding: "20px",
-              },
-              buttonNext: {
-                backgroundColor: "#9333ea",
-                borderRadius: "8px",
-                padding: "10px 20px",
-              },
-              buttonBack: {
-                color: "#6b7280",
-                marginRight: "10px",
-              },
-              buttonSkip: {
-                color: "#6b7280",
-              },
-            }}
-            locale={{
-              back: "Back",
-              close: "Close",
-              last: "Finish",
-              next: "Next",
-              skip: "Skip Tour",
-            }}
+            onCallback={handleWizardCallback}
           />
         )}
 

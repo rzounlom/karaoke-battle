@@ -1,7 +1,7 @@
 "use client";
 
 import { Clock, History, Mic, Play, Search, Settings } from "lucide-react";
-import Joyride, { CallBackProps, STATUS, Step } from "react-joyride";
+import { CustomWizard, WizardStep } from "@/components/custom-wizard";
 import {
   SongWithDuration,
   getAllSongs,
@@ -57,7 +57,7 @@ function SongsPageContent() {
   const [runWizard, setRunWizard] = useState(false);
   const [wizardLoading, setWizardLoading] = useState(true);
   const [devModeWizardEnabled, setDevModeWizardEnabled] = useState(false);
-  const [showModalWizard, setShowModalWizard] = useState(false);
+  const [wizardStepIndex, setWizardStepIndex] = useState(0);
 
   // Get data from the new songs system
   const allSongs = getAllSongs();
@@ -162,11 +162,14 @@ function SongsPageContent() {
           if (devOverride === "true") {
             setRunWizard(true);
             setDevModeWizardEnabled(true);
+            setWizardStepIndex(0);
           } else if (!data.hasCompletedFirstSession) {
             setRunWizard(true);
+            setWizardStepIndex(0);
           }
         } else if (!data.hasCompletedFirstSession) {
           setRunWizard(true);
+          setWizardStepIndex(0);
         }
       }
     } catch (error) {
@@ -176,8 +179,8 @@ function SongsPageContent() {
     }
   };
 
-  // Wizard steps for main page (steps 1-2)
-  const mainWizardSteps: Step[] = [
+  // All wizard steps (combined into one flow)
+  const wizardSteps: WizardStep[] = [
     {
       target: "[data-tour='search']",
       content: (
@@ -205,10 +208,6 @@ function SongsPageContent() {
       ),
       placement: "top",
     },
-  ];
-
-  // Wizard step for modal (step 3)
-  const modalWizardStep: Step[] = [
     {
       target: "[data-tour='mode-selection']",
       content: (
@@ -284,53 +283,33 @@ function SongsPageContent() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  // Handle wizard callback for main steps - defined after filteredSongs
-  const handleMainWizardCallback = useCallback(
-    (data: CallBackProps) => {
-      const { status, index, type, action } = data;
+  // Handle wizard callback - defined after filteredSongs
+  const handleWizardCallback = useCallback(
+    (data: { status: "finished" | "skipped"; index: number }) => {
+      const { status, index } = data;
 
-      // If we're moving forward from step 2, open the modal for step 3
+      // If we're on step 2 (index 1) and clicking next, open the modal for step 3
       if (
-        type === "step:after" &&
-        typeof index === "number" &&
-        action === "next" &&
+        status === "finished" &&
         index === 1 &&
         filteredSongs.length > 0 &&
         !showModeModal
       ) {
-        // Stop main wizard and open modal for step 3
-        setRunWizard(false);
+        // Open modal and wait for it to render before showing step 3
+        const firstSong = filteredSongs[0];
+        setSelectedSong(firstSong);
+        setShowModeModal(true);
+        // Wait for modal to render, then continue to step 3
         setTimeout(() => {
-          const firstSong = filteredSongs[0];
-          setSelectedSong(firstSong);
-          setShowModeModal(true);
-          // Start modal wizard after modal renders
-          setTimeout(() => {
-            setShowModalWizard(true);
-          }, 500);
-        }, 300);
+          setWizardStepIndex(2); // Move to step 3 (index 2)
+        }, 600);
+        return; // Don't finish the wizard yet - let stepIndex control progression
       }
 
-      if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+      // If we're finishing step 3 (index 2) or skipping, close everything
+      if (status === "finished" && index === 2) {
         setRunWizard(false);
-        // Mark first session as completed (unless in dev mode with override)
-        if (!devModeWizardEnabled && isSignedIn) {
-          fetch("/api/user/first-session", { method: "POST" }).catch(
-            console.error
-          );
-        }
-      }
-    },
-    [devModeWizardEnabled, isSignedIn, filteredSongs, showModeModal]
-  );
-
-  // Handle wizard callback for modal step
-  const handleModalWizardCallback = useCallback(
-    (data: CallBackProps) => {
-      const { status } = data;
-
-      if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
-        setShowModalWizard(false);
+        setWizardStepIndex(0);
         // Close modal if it was opened for the wizard
         if (showModeModal && selectedSong) {
           setShowModeModal(false);
@@ -342,9 +321,35 @@ function SongsPageContent() {
             console.error
           );
         }
+      } else if (status === "skipped") {
+        setRunWizard(false);
+        setWizardStepIndex(0);
+        // Close modal if it was opened for the wizard
+        if (showModeModal && selectedSong) {
+          setShowModeModal(false);
+          setSelectedSong(null);
+        }
+        // Mark first session as completed (unless in dev mode with override)
+        if (!devModeWizardEnabled && isSignedIn) {
+          fetch("/api/user/first-session", { method: "POST" }).catch(
+            console.error
+          );
+        }
+      } else if (status === "finished" && index === 0) {
+        // Moving from step 1 to step 2 - just update the step index normally
+        if (wizardStepIndex === 0) {
+          setWizardStepIndex(1);
+        }
       }
     },
-    [devModeWizardEnabled, isSignedIn, showModeModal, selectedSong]
+    [
+      devModeWizardEnabled,
+      isSignedIn,
+      filteredSongs,
+      showModeModal,
+      selectedSong,
+      wizardStepIndex,
+    ]
   );
 
   const handleSongSelect = (song: SongWithDuration) => {
@@ -688,6 +693,7 @@ function SongsPageContent() {
               setDevModeWizardEnabled(newState);
               localStorage.setItem("dev-wizard-enabled", String(newState));
               setRunWizard(newState);
+              setWizardStepIndex(0);
             }}
             className="bg-white dark:bg-gray-800 shadow-lg"
           >
@@ -697,87 +703,16 @@ function SongsPageContent() {
         </div>
       )}
 
-      {/* Main Wizard (Steps 1-2) */}
+      {/* Wizard - All 3 steps in one flow */}
       {!wizardLoading && (
-        <Joyride
-          steps={mainWizardSteps}
-          run={runWizard && !showModeModal}
+        <CustomWizard
+          steps={wizardSteps}
+          run={runWizard}
           continuous={true}
           showProgress={true}
           showSkipButton={true}
-          callback={handleMainWizardCallback}
-          spotlightClicks={true}
-          styles={{
-            options: {
-              primaryColor: "#9333ea", // purple-600
-              zIndex: 10000,
-            },
-            tooltip: {
-              borderRadius: "12px",
-              padding: "20px",
-            },
-            buttonNext: {
-              backgroundColor: "#9333ea",
-              borderRadius: "8px",
-              padding: "10px 20px",
-            },
-            buttonBack: {
-              color: "#6b7280",
-              marginRight: "10px",
-            },
-            buttonSkip: {
-              color: "#6b7280",
-            },
-          }}
-          locale={{
-            back: "Back",
-            close: "Close",
-            last: "Next",
-            next: "Next",
-            skip: "Skip Tour",
-          }}
-        />
-      )}
-
-      {/* Modal Wizard (Step 3) */}
-      {showModeModal && !wizardLoading && (
-        <Joyride
-          steps={modalWizardStep}
-          run={showModalWizard}
-          continuous={true}
-          showProgress={false}
-          showSkipButton={true}
-          callback={handleModalWizardCallback}
-          spotlightClicks={true}
-          styles={{
-            options: {
-              primaryColor: "#9333ea", // purple-600
-              zIndex: 10001, // Higher than modal
-            },
-            tooltip: {
-              borderRadius: "12px",
-              padding: "20px",
-            },
-            buttonNext: {
-              backgroundColor: "#9333ea",
-              borderRadius: "8px",
-              padding: "10px 20px",
-            },
-            buttonBack: {
-              color: "#6b7280",
-              marginRight: "10px",
-            },
-            buttonSkip: {
-              color: "#6b7280",
-            },
-          }}
-          locale={{
-            back: "Back",
-            close: "Close",
-            last: "Finish",
-            next: "Next",
-            skip: "Skip Tour",
-          }}
+          stepIndex={wizardStepIndex}
+          onCallback={handleWizardCallback}
         />
       )}
     </div>
