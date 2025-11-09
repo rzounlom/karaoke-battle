@@ -198,7 +198,7 @@ export async function GET(req: NextRequest) {
       hasMore: allResults.length > limit,
     });
   } catch (error) {
-    console.error("Error fetching user results:", error);
+    console.error("Error fetching user performances:", error);
     return NextResponse.json(
       { success: false, message: "Internal server error" },
       { status: 500 }

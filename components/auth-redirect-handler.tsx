@@ -27,7 +27,7 @@ export function AuthRedirectHandler() {
     if (isLoaded && !isSignedIn) {
       // User is not signed in, check if we're on a protected route
       const currentPath = window.location.pathname;
-      const protectedRoutes = ["/gameplay", "/results"];
+      const protectedRoutes = ["/gameplay", "/performances"];
 
       if (protectedRoutes.includes(currentPath)) {
         // Store the current location as intended destination

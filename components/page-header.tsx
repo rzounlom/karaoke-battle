@@ -34,7 +34,7 @@ export function PageHeader({
   const shouldShowNavigation = isSignedIn && showNavigation && !isGameplayPage;
 
   // Main navigation pages - don't show page title for these
-  const mainNavPages = ["/songs", "/results", "/friends", "/battles", "/profile"];
+  const mainNavPages = ["/songs", "/performances", "/friends", "/battles", "/profile"];
   const isMainNavPage = mainNavPages.includes(pathname);
 
   const handleBackClick = () => {
@@ -82,18 +82,18 @@ export function PageHeader({
               </Button>
             </Link>
 
-            <Link href="/results">
+            <Link href="/performances">
               <Button
                 variant="ghost"
                 size="sm"
                 className={`flex items-center space-x-2 ${
-                  pathname === "/results"
+                  pathname === "/performances"
                     ? "text-purple-600 dark:text-purple-400"
                     : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
                 }`}
               >
                 <Trophy className="h-4 w-4" />
-                <span>Results</span>
+                <span>Performances</span>
               </Button>
             </Link>
 

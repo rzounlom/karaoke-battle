@@ -1,5 +1,6 @@
 "use client";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   BarChart3,
   Calendar,
@@ -14,15 +15,15 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { useCallback, useEffect, useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { ProtectedRoute } from "@/components/protected-route";
 import { formatScore } from "@/lib/utils";
-import { useEffect, useState, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 
 interface ScoreResult {
@@ -89,27 +90,19 @@ interface BattleResult {
 
 type Result = ScoreResult | BattleResult;
 
-export default function ResultsPage() {
+export default function PerformancesPage() {
   const { isLoaded, isSignedIn } = useUser();
   const [results, setResults] = useState<Result[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedResult, setSelectedResult] = useState<Result | null>(null);
   const [filter, setFilter] = useState<"all" | "scores" | "battles">("all");
 
-  useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      loadResults();
-    } else if (isLoaded && !isSignedIn) {
-      setIsLoading(false);
-    }
-  }, [isLoaded, isSignedIn, filter]);
-
-  const loadResults = async () => {
+  const loadResults = useCallback(async () => {
     setIsLoading(true);
     try {
       const typeParam = filter === "all" ? "" : filter;
       const response = await fetch(
-        `/api/user/results?type=${typeParam}&limit=50`
+        `/api/user/performances?type=${typeParam}&limit=50`
       );
       const data = await response.json();
 
@@ -117,11 +110,19 @@ export default function ResultsPage() {
         setResults(data.results || []);
       }
     } catch (error) {
-      console.error("Error loading results:", error);
+      console.error("Error loading performances:", error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn) {
+      loadResults();
+    } else if (isLoaded && !isSignedIn) {
+      setIsLoading(false);
+    }
+  }, [isLoaded, isSignedIn, loadResults]);
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -164,19 +165,6 @@ export default function ResultsPage() {
     }
   };
 
-  const getRankColor = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return "bg-yellow-500";
-      case 2:
-        return "bg-gray-400";
-      case 3:
-        return "bg-orange-600";
-      default:
-        return "bg-gray-500";
-    }
-  };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -194,7 +182,7 @@ export default function ResultsPage() {
     return (
       <ProtectedRoute>
         <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
-          <PageHeader title="Results" showNavigation={true} />
+          <PageHeader title="Performances" showNavigation={true} />
           <div className="container mx-auto px-6 py-8">
             <div className="text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
@@ -210,7 +198,7 @@ export default function ResultsPage() {
     return (
       <ProtectedRoute>
         <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
-          <PageHeader title="Results" showNavigation={true} />
+          <PageHeader title="Performances" showNavigation={true} />
         </div>
       </ProtectedRoute>
     );
@@ -219,7 +207,7 @@ export default function ResultsPage() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
-        <PageHeader title="Results" showNavigation={true} />
+        <PageHeader title="Performances" showNavigation={true} />
 
         <div className="container mx-auto px-6 py-8">
           {/* Page Title */}
@@ -259,18 +247,20 @@ export default function ResultsPage() {
             </Button>
           </div>
 
-          {/* Results List */}
+          {/* Performances List */}
           {isLoading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-400">Loading results...</p>
+              <p className="text-gray-600 dark:text-gray-400">
+                Loading performances...
+              </p>
             </div>
           ) : filteredResults.length === 0 ? (
             <Card>
               <CardContent className="text-center py-12">
                 <Trophy className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  No Results Yet
+                  No Performances Yet
                 </h3>
                 <p className="text-gray-600 dark:text-gray-400 mb-4">
                   Start playing to see your performance history here!
@@ -348,13 +338,17 @@ export default function ResultsPage() {
                     {result.type === "score" && (
                       <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
                         <div className="text-xs">
-                          <div className="text-gray-500 dark:text-gray-400">Accuracy</div>
+                          <div className="text-gray-500 dark:text-gray-400">
+                            Accuracy
+                          </div>
                           <div className="font-medium text-gray-900 dark:text-white">
                             {Math.round(result.accuracy)}%
                           </div>
                         </div>
                         <div className="text-xs">
-                          <div className="text-gray-500 dark:text-gray-400">Streak</div>
+                          <div className="text-gray-500 dark:text-gray-400">
+                            Streak
+                          </div>
                           <div className="font-medium text-gray-900 dark:text-white">
                             {result.maxStreak}
                           </div>
@@ -458,7 +452,9 @@ function ScoreDetailModal({
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             {result.song.title}
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">{result.song.artist}</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            {result.song.artist}
+          </p>
         </div>
         <Button variant="ghost" size="icon" onClick={onClose}>
           <X className="h-5 w-5" />
@@ -470,7 +466,9 @@ function ScoreDetailModal({
         <div className="text-5xl font-bold karaoke-text-gradient mb-2">
           {formatScore(result.totalScore)}
         </div>
-        <div className="text-lg text-gray-600 dark:text-gray-400">Total Score</div>
+        <div className="text-lg text-gray-600 dark:text-gray-400">
+          Total Score
+        </div>
       </div>
 
       {/* Performance Breakdown */}
@@ -508,13 +506,17 @@ function ScoreDetailModal({
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {result.perfectNotes}
           </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Perfect Notes</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Perfect Notes
+          </div>
         </div>
         <div className="text-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
             {result.maxStreak}
           </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">Max Streak</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Max Streak
+          </div>
         </div>
         <div className="text-center p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
           <div className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -575,7 +577,9 @@ function BattleDetailModal({
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             {result.song.title}
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">{result.song.artist}</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            {result.song.artist}
+          </p>
         </div>
         <Button variant="ghost" size="icon" onClick={onClose}>
           <X className="h-5 w-5" />
@@ -589,7 +593,9 @@ function BattleDetailModal({
             <div className="text-2xl font-bold karaoke-text-gradient mb-1">
               {result.userScore ? formatScore(result.userScore) : "No Score"}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Your Score</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Your Score
+            </div>
           </div>
           <div className="text-right">
             {result.isWinner ? (
@@ -629,7 +635,9 @@ function BattleDetailModal({
             const rank = index + 1;
             const displayName =
               participant.user.username ||
-              `${participant.user.firstName || ""} ${participant.user.lastName || ""}`.trim() ||
+              `${participant.user.firstName || ""} ${
+                participant.user.lastName || ""
+              }`.trim() ||
               "Unknown";
             return (
               <div
