@@ -55,7 +55,10 @@ export async function syncUser() {
     }
   } catch (error) {
     console.error("Error syncing user:", error);
-    return { success: false, message: "Failed to sync user" };
+    // Provide more detailed error message
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to sync user";
+    return { success: false, message: errorMessage };
   }
 }
 

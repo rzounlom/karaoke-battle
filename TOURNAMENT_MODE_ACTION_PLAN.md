@@ -431,6 +431,11 @@ model Song {
 - Validate turn is IN_PROGRESS
 - Update turn score and status
 - Update participant total score
+- **Award XP to signed-in users** (`hasAccount: true`):
+  - Calculate XP from score using `calculateExperienceFromScore()`
+  - Update user's experience and level in database
+  - Only authenticated users with accounts receive XP
+  - Temporary/guest users do NOT receive XP
 - Trigger next turn creation
 - Return updated leaderboard
 
@@ -743,7 +748,12 @@ channel.presence.enter({
 ### 8.4 Post-Tournament Actions
 
 - Save tournament results to database (optional)
-- Award XP/points to participants (optional)
+- **Award XP/points to signed-in participants only**:
+  - Only users with `hasAccount: true` receive XP
+  - Calculate XP from each turn's score using `calculateExperienceFromScore()`
+  - Update user's total experience and level
+  - Guest users (temporary names) do NOT receive XP
+  - Winner bonus: Additional XP for tournament winner (optional)
 - Send notifications (optional)
 
 **Estimated Time:** 3-4 hours

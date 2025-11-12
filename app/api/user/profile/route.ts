@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 
+import { syncUser } from "@/lib/auth";
+
 export async function GET() {
   try {
     const user = await currentUser();
@@ -15,7 +17,7 @@ export async function GET() {
     }
 
     // Get current user from database
-    const dbUser = await prisma.user.findUnique({
+    let dbUser = await prisma.user.findUnique({
       where: { clerkId: user.id },
       select: {
         id: true,
@@ -27,6 +29,27 @@ export async function GET() {
         experience: true,
       },
     });
+
+    // If user doesn't exist in database yet, try to sync them first
+    // This can happen right after sign-in before UserSync completes
+    if (!dbUser) {
+      const syncResult = await syncUser();
+      if (syncResult.success && syncResult.user) {
+        // Retry fetching after sync
+        dbUser = await prisma.user.findUnique({
+          where: { clerkId: user.id },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            level: true,
+            experience: true,
+          },
+        });
+      }
+    }
 
     if (!dbUser) {
       return NextResponse.json(

@@ -328,8 +328,9 @@ export default function TournamentJoinPage() {
               {!isSignedIn && (
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                   <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-                    <strong>Sign in</strong> to save your progress, or enter a
-                    temporary name to join as a guest.
+                    <strong>Sign in</strong> to create an account and save your
+                    progress. Or enter a temporary name to join as a guest (your
+                    progress won&apos;t be saved).
                   </p>
                   <div className="flex gap-2">
                     <SignInButton mode="modal">

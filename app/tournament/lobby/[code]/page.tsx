@@ -1,14 +1,14 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Clock, Loader2, Trophy, Users } from "lucide-react";
+import { Clock, Loader2, LogIn, Trophy, Users } from "lucide-react";
 import { SignInButton, useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/page-header";
-import React from "react";
 import { toast } from "@/lib/toast";
 
 interface TournamentSession {
@@ -44,30 +44,10 @@ interface TournamentSession {
   };
 }
 
-// Component to filter out redirectUrl prop from SignInButton
-const SignInButtonChild = React.forwardRef<
-  HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement> & { redirectUrl?: string }
->((props, ref) => {
-  const { redirectUrl, ...restProps } = props;
-  void redirectUrl; // Explicitly mark as intentionally unused
-  return (
-    <button
-      ref={ref}
-      type="button"
-      className="inline-flex items-center justify-center rounded-md bg-purple-600 px-6 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none"
-      {...restProps}
-    >
-      Sign In / Sign Up
-    </button>
-  );
-});
-SignInButtonChild.displayName = "SignInButtonChild";
-
 export default function TournamentLobbyPage() {
   const params = useParams();
   const router = useRouter();
-  const { isSignedIn, isLoaded, user: clerkUser } = useUser();
+  const { isSignedIn } = useUser();
 
   // Safely extract session code from params
   let sessionCode = "";
@@ -87,7 +67,8 @@ export default function TournamentLobbyPage() {
 
   const [session, setSession] = useState<TournamentSession | null>(null);
   const [loading, setLoading] = useState(true);
-  // const [isHost, setIsHost] = useState(false);
+  const [joining, setJoining] = useState(false);
+  const [temporaryName, setTemporaryName] = useState("");
 
   useEffect(() => {
     if (sessionCode) {
@@ -109,11 +90,6 @@ export default function TournamentLobbyPage() {
 
       if (data.success) {
         setSession(data.session);
-        // Check if current user is the host
-        if (isSignedIn && clerkUser) {
-          // We'll need to check this properly when we have user ID
-          // For now, just set a placeholder
-        }
       } else {
         toast.error(data.message || "Failed to load tournament");
         if (data.message?.includes("not found")) {
@@ -127,6 +103,82 @@ export default function TournamentLobbyPage() {
       setLoading(false);
     }
   };
+
+  const handleJoin = async () => {
+    if (!session) return;
+
+    // For authenticated users, join directly
+    if (isSignedIn) {
+      setJoining(true);
+      try {
+        const response = await fetch("/api/tournament/join", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionCode: sessionCode,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          toast.success("Joined tournament!", "Refreshing lobby...");
+          // Reload session to show updated participant list
+          await loadSession();
+        } else {
+          toast.error(data.message || "Failed to join tournament");
+        }
+      } catch (error) {
+        console.error("Error joining tournament:", error);
+        toast.error("Failed to join tournament", "Please try again.");
+      } finally {
+        setJoining(false);
+      }
+    } else {
+      // For unauthenticated users, require temporary name
+      if (!temporaryName.trim()) {
+        toast.error(
+          "Please enter a name",
+          "You need a name to join the tournament."
+        );
+        return;
+      }
+
+      setJoining(true);
+      try {
+        const response = await fetch("/api/tournament/join", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionCode: sessionCode,
+            temporaryName: temporaryName.trim(),
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          toast.success("Joined tournament!", "Sign in to save your progress.");
+          setTemporaryName("");
+          // Reload session to show updated participant list
+          await loadSession();
+        } else {
+          toast.error(data.message || "Failed to join tournament");
+        }
+      } catch (error) {
+        console.error("Error joining tournament:", error);
+        toast.error("Failed to join tournament", "Please try again.");
+      } finally {
+        setJoining(false);
+      }
+    }
+  };
+
+  const isFull = session ? session.currentPlayers >= session.maxPlayers : false;
+  const canJoin =
+    session &&
+    !isFull &&
+    (session.status === "WAITING" || session.status === "STARTING");
 
   if (loading) {
     return (
@@ -166,43 +218,7 @@ export default function TournamentLobbyPage() {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
       <PageHeader title="Tournament Lobby" />
 
-      {/* Sign-In Required Modal - Blocks page until user signs in */}
-      {isLoaded && !isSignedIn && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6 shadow-xl">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trophy className="h-8 w-8 text-purple-600 dark:text-purple-400" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                Sign In Required
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                You need to sign in or create an account to view and join
-                tournaments. This modal will remain until you sign in.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <SignInButton
-                  mode="modal"
-                  fallbackRedirectUrl={
-                    typeof window !== "undefined"
-                      ? window.location.href
-                      : undefined
-                  }
-                >
-                  <SignInButtonChild />
-                </SignInButton>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div
-        className={`container mx-auto px-4 py-8 max-w-4xl ${
-          isLoaded && !isSignedIn ? "blur-sm pointer-events-none" : ""
-        }`}
-      >
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 md:p-8">
           {/* Header */}
           <div className="text-center mb-8">
@@ -283,6 +299,91 @@ export default function TournamentLobbyPage() {
               ))}
             </div>
           </div>
+
+          {/* Join Form - Show if user can join */}
+          {canJoin && (
+            <div className="space-y-4 mb-6">
+              {!isSignedIn && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
+                    <strong>Sign in</strong> to create an account and save your
+                    progress. Or enter a temporary name to join as a guest (your
+                    progress won&apos;t be saved).
+                  </p>
+                  <div className="flex gap-2">
+                    <SignInButton mode="modal">
+                      <Button variant="outline" size="sm" className="flex-1">
+                        <LogIn className="h-4 w-4 mr-2" />
+                        Sign In
+                      </Button>
+                    </SignInButton>
+                  </div>
+                </div>
+              )}
+
+              {!isSignedIn && (
+                <div>
+                  <label
+                    htmlFor="temporary-name"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                  >
+                    Enter Your Name
+                  </label>
+                  <Input
+                    id="temporary-name"
+                    type="text"
+                    placeholder="Your name"
+                    value={temporaryName}
+                    onChange={(e) => setTemporaryName(e.target.value)}
+                    maxLength={30}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleJoin();
+                      }
+                    }}
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    This name will be used in the tournament
+                  </p>
+                </div>
+              )}
+
+              <Button
+                onClick={handleJoin}
+                disabled={joining || (!isSignedIn && !temporaryName.trim())}
+                className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
+                size="lg"
+              >
+                {joining ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Joining...
+                  </>
+                ) : (
+                  "Join Tournament"
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Full or Started Message */}
+          {!canJoin && session && (
+            <div className="mb-6">
+              {isFull ? (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 text-center">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    This tournament is full ({session.maxPlayers} players)
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-4 text-center">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    This tournament has already started or ended
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Info Message */}
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-center">
