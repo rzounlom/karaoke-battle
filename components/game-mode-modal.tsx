@@ -6,6 +6,7 @@ import { SignInButton, useUser } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
+import { TournamentCreateModal } from "@/components/tournament-create-modal";
 
 interface GameModeModalProps {
   isOpen: boolean;
@@ -36,10 +37,10 @@ const gameModes = [
   {
     id: "tournament",
     title: "Tournament",
-    description: "Compete in organized tournaments",
+    description: "Create a tournament where each player picks their own song",
     icon: Trophy,
     color: "from-yellow-500 to-orange-500",
-    players: "8-32 players",
+    players: "2-32 players",
   },
 ];
 
@@ -77,6 +78,7 @@ export function GameModeModal({
   const { isSignedIn, isLoaded } = useUser();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [pendingMode, setPendingMode] = useState<string | null>(null);
+  const [showTournamentModal, setShowTournamentModal] = useState(false);
   const previousSignedInState = useRef<boolean | null>(null);
 
   // Watch for authentication state changes and redirect after sign-in
@@ -113,8 +115,11 @@ export function GameModeModal({
     if (modeId === "multiplayer" && onMultiplayerSelect) {
       // For multiplayer, open friend selection modal instead
       onMultiplayerSelect();
+    } else if (modeId === "tournament") {
+      // For tournament, open tournament creation modal
+      setShowTournamentModal(true);
     } else {
-      // For single player and tournament, navigate to gameplay
+      // For single player, navigate to gameplay
       router.push(`/gameplay?songId=${songId}&mode=${modeId}`);
     }
   };
@@ -122,6 +127,7 @@ export function GameModeModal({
   const handleClose = useCallback(() => {
     setShowAuthPrompt(false);
     setPendingMode(null);
+    setShowTournamentModal(false);
     onClose();
   }, [onClose]);
 
@@ -272,6 +278,12 @@ export function GameModeModal({
           </div>
         </div>
       )}
+
+      {/* Tournament Creation Modal */}
+      <TournamentCreateModal
+        isOpen={showTournamentModal}
+        onClose={() => setShowTournamentModal(false)}
+      />
     </div>
   );
 }

@@ -35,6 +35,8 @@ model User {
   challengesCreated     Challenge[]            @relation("Challenger")
   challengesWon         Challenge[]            @relation("Winner")
   challengeParticipants ChallengeParticipant[]
+  tournamentSessionsHosted TournamentSession[]  @relation("TournamentHost")
+  tournamentParticipations TournamentParticipant[] @relation("TournamentParticipant")
 
   @@map("users")
 }
@@ -59,6 +61,7 @@ model Song {
   scores       Score[]
   gameSessions GameSession[]
   challenges   Challenge[]
+  tournamentTurns TournamentTurn[]
 
   @@unique([title, artist])
   @@map("songs")
@@ -314,4 +317,107 @@ enum ParticipantStatus {
   PENDING // Invited, waiting for response
   ACCEPTED // Participant accepted the challenge
   DECLINED // Participant declined the challenge
+}
+
+// Tournament Session Models
+model TournamentSession {
+  id            String                @id @default(cuid())
+  sessionCode   String                @unique // 6-8 char code for joining
+  hostId        String                // User who created (must have account)
+  name          String?               // Optional session name
+  status        TournamentSessionStatus @default(WAITING)
+  currentTurn   Int                   @default(0) // Current turn number
+  maxPlayers    Int                   @default(8)
+  settings      Json?                 // Tournament settings (rounds, time limits, etc.)
+
+  // Timing
+  startedAt     DateTime?
+  endedAt       DateTime?
+  expiresAt     DateTime?             // Auto-expire inactive sessions
+
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  // Relations
+  host          User                  @relation("TournamentHost", fields: [hostId], references: [id], onDelete: Cascade)
+  participants  TournamentParticipant[]
+  turns         TournamentTurn[]
+
+  @@index([sessionCode])
+  @@index([status])
+  @@index([hostId])
+  @@map("tournament_sessions")
+}
+
+model TournamentParticipant {
+  id              String   @id @default(cuid())
+  sessionId       String
+  userId          String?  // Null if not logged in yet (temporary username)
+  temporaryName   String?  // Display name before account creation
+  displayName     String   // Final display name (username or temporaryName)
+  turnOrder       Int      // Order in which they play
+  totalScore      Int      @default(0)
+  isReady         Boolean  @default(false)
+  hasAccount      Boolean  @default(false) // Whether they have an account
+
+  // Timing
+  joinedAt        DateTime @default(now())
+  lastActiveAt    DateTime @default(now())
+
+  // Relations
+  session         TournamentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user            User?             @relation("TournamentParticipant", fields: [userId], references: [id], onDelete: SetNull)
+  turns           TournamentTurn[]
+
+  // Note: userId can be null, so we can't use unique constraint on [sessionId, userId]
+  // Handle uniqueness in application logic: one user per session, or one temporaryName per session
+  @@unique([sessionId, displayName]) // Prevent duplicate display names in same session
+  @@index([sessionId])
+  @@index([userId])
+  @@map("tournament_participants")
+}
+
+model TournamentTurn {
+  id              String   @id @default(cuid())
+  sessionId       String
+  participantId   String
+  turnNumber      Int      // Which turn in the tournament (1, 2, 3...)
+  songId          String?  // Song selected for this turn
+  score           Int?     // Score achieved (null until completed)
+  status          TurnStatus @default(PENDING) // PENDING, IN_PROGRESS, COMPLETED, SKIPPED
+
+  // Timing
+  startedAt       DateTime?
+  completedAt     DateTime?
+  expiresAt       DateTime? // Time limit for this turn
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  session         TournamentSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  participant     TournamentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  song            Song?              @relation(fields: [songId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, turnNumber]) // One turn per turn number per session
+  @@index([sessionId])
+  @@index([participantId])
+  @@index([status])
+  @@map("tournament_turns")
+}
+
+enum TournamentSessionStatus {
+  WAITING      // Waiting for players to join
+  STARTING     // Countdown/ready check
+  IN_PROGRESS  // Tournament active
+  COMPLETED    // Tournament finished
+  CANCELLED    // Host cancelled
+  EXPIRED      // Session expired
+}
+
+enum TurnStatus {
+  PENDING      // Turn not started yet
+  IN_PROGRESS  // Player is currently playing
+  COMPLETED    // Turn finished with score
+  SKIPPED      // Turn skipped/timed out
 }
