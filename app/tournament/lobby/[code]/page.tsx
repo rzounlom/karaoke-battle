@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
+  Check,
   Clock,
   Loader2,
   LogIn,
@@ -85,9 +86,27 @@ export default function TournamentLobbyPage() {
   const [togglingReady, setTogglingReady] = useState(false);
   const [starting, setStarting] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [requestingJoin, setRequestingJoin] = useState(false);
   const [removingParticipant, setRemovingParticipant] = useState<string | null>(
     null
   );
+  const [joinRequests, setJoinRequests] = useState<
+    Array<{
+      requestId: string;
+      displayName: string;
+      userId: string | null;
+      hasAccount: boolean;
+      user: {
+        id: string;
+        username: string | null;
+        firstName: string | null;
+        lastName: string | null;
+        avatar: string | null;
+      } | null;
+      requestedAt: string;
+    }>
+  >([]);
+  const [approvingRequest, setApprovingRequest] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentParticipantId, setCurrentParticipantId] = useState<
     string | null
@@ -213,6 +232,98 @@ export default function TournamentLobbyPage() {
             loadSession(); // Reload session to get updated participant list
           }
         });
+
+        channel.subscribe("join_request", (message) => {
+          if (mounted) {
+            const request = message.data as {
+              requestId: string;
+              displayName: string;
+              userId: string | null;
+              hasAccount: boolean;
+              user: {
+                id: string;
+                username: string | null;
+                firstName: string | null;
+                lastName: string | null;
+                avatar: string | null;
+              } | null;
+              requestedAt: string;
+            };
+            setJoinRequests((prev) => {
+              // Avoid duplicates
+              if (prev.some((r) => r.requestId === request.requestId)) {
+                return prev;
+              }
+              const newRequests = [...prev, request];
+              // Show toast notification (will be filtered by isHost check in UI)
+              return newRequests;
+            });
+          }
+        });
+
+        channel.subscribe("join_request_approved", (message) => {
+          if (mounted) {
+            const { requestId, participant } = message.data as {
+              requestId: string;
+              participant: {
+                id: string;
+                displayName: string;
+                turnOrder: number;
+                isReady: boolean;
+                hasAccount: boolean;
+                user: {
+                  id: string;
+                  username: string | null;
+                  firstName: string | null;
+                  lastName: string | null;
+                  avatar: string | null;
+                } | null;
+              };
+            };
+            // Remove the request from the list
+            setJoinRequests((prev) =>
+              prev.filter((r) => r.requestId !== requestId)
+            );
+            // Reload session to show new participant
+            loadSession();
+            // Show success message if this is the current user
+            if (typeof window !== "undefined") {
+              const storedParticipantId = sessionStorage.getItem(
+                `tournament_${sessionCode}_participantId`
+              );
+              if (
+                participant.user?.id === currentUserId ||
+                storedParticipantId === participant.id
+              ) {
+                toast.success(
+                  "Join request approved!",
+                  "You have been added to the tournament."
+                );
+                // Store participant ID for guests
+                if (participant.id && !isSignedIn) {
+                  sessionStorage.setItem(
+                    `tournament_${sessionCode}_participantId`,
+                    participant.id
+                  );
+                  setCurrentParticipantId(participant.id);
+                }
+              }
+            }
+          }
+        });
+
+        channel.subscribe("join_request_denied", (message) => {
+          if (mounted) {
+            const { requestId } = message.data as {
+              requestId: string;
+              displayName: string;
+            };
+            // Remove the request from the list
+            setJoinRequests((prev) =>
+              prev.filter((r) => r.requestId !== requestId)
+            );
+          }
+        });
       } catch (error) {
         console.error("Error setting up Ably:", error);
       }
@@ -247,6 +358,24 @@ export default function TournamentLobbyPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionCode, isSignedIn]);
+
+  // Show toast notification when new join requests arrive (host only)
+  useEffect(() => {
+    if (isHost && isInProgress && joinRequests.length > 0) {
+      // Get the most recent request
+      const latestRequest = joinRequests[joinRequests.length - 1];
+      // Only show toast if this is a new request (within last 2 seconds)
+      const requestTime = new Date(latestRequest.requestedAt).getTime();
+      const now = Date.now();
+      if (now - requestTime < 2000) {
+        toast.info(
+          "New join request",
+          `${latestRequest.displayName} wants to join the tournament.`
+        );
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [joinRequests.length]);
 
   const loadSession = async () => {
     if (!sessionCode) {
@@ -372,7 +501,15 @@ export default function TournamentLobbyPage() {
           // Reload session to show updated participant list
           await loadSession();
         } else {
-          toast.error(data.message || "Failed to join tournament");
+          // Check if host approval is required
+          if (data.requiresHostApproval) {
+            toast.error(
+              "Host approval required",
+              "The tournament has started. Contact the host to request joining."
+            );
+          } else {
+            toast.error(data.message || "Failed to join tournament");
+          }
         }
       } catch (error) {
         console.error("Error joining tournament:", error);
@@ -417,7 +554,15 @@ export default function TournamentLobbyPage() {
           // Reload session to show updated participant list
           await loadSession();
         } else {
-          toast.error(data.message || "Failed to join tournament");
+          // Check if host approval is required
+          if (data.requiresHostApproval) {
+            toast.error(
+              "Host approval required",
+              "The tournament has started. Contact the host to request joining."
+            );
+          } else {
+            toast.error(data.message || "Failed to join tournament");
+          }
         }
       } catch (error) {
         console.error("Error joining tournament:", error);
@@ -618,6 +763,129 @@ export default function TournamentLobbyPage() {
     }
   };
 
+  const handleRequestJoin = async () => {
+    if (!session) return;
+
+    // For unauthenticated users, require temporary name
+    if (!isSignedIn && !temporaryName.trim()) {
+      toast.error("Please enter a name", "You need a name to request joining.");
+      return;
+    }
+
+    setRequestingJoin(true);
+    try {
+      const response = await fetch("/api/tournament/request-join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionCode: sessionCode,
+          temporaryName: !isSignedIn ? temporaryName.trim() : undefined,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Join request sent", "Waiting for host approval...");
+      } else {
+        toast.error(data.message || "Failed to send join request");
+      }
+    } catch (error) {
+      console.error("Error requesting to join:", error);
+      toast.error("Failed to send join request", "Please try again.");
+    } finally {
+      setRequestingJoin(false);
+    }
+  };
+
+  const handleApproveJoinRequest = async (
+    requestId: string,
+    displayName: string,
+    userId: string | null,
+    temporaryName?: string
+  ) => {
+    if (!session) return;
+
+    setApprovingRequest(requestId);
+    try {
+      const response = await fetch("/api/tournament/approve-join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionCode: sessionCode,
+          requestId,
+          approved: true,
+          displayName,
+          userId,
+          temporaryName,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(
+          "Join request approved",
+          `${displayName} has been added to the tournament.`
+        );
+        // Remove request from list (will also be removed via Ably event)
+        setJoinRequests((prev) =>
+          prev.filter((r) => r.requestId !== requestId)
+        );
+        // Reload session to show new participant
+        await loadSession();
+      } else {
+        toast.error(data.message || "Failed to approve join request");
+      }
+    } catch (error) {
+      console.error("Error approving join request:", error);
+      toast.error("Failed to approve join request", "Please try again.");
+    } finally {
+      setApprovingRequest(null);
+    }
+  };
+
+  const handleDenyJoinRequest = async (
+    requestId: string,
+    displayName: string
+  ) => {
+    if (!session) return;
+
+    setApprovingRequest(requestId);
+    try {
+      const response = await fetch("/api/tournament/approve-join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionCode: sessionCode,
+          requestId,
+          approved: false,
+          displayName,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(
+          "Join request denied",
+          `${displayName}'s request has been denied.`
+        );
+        // Remove request from list (will also be removed via Ably event)
+        setJoinRequests((prev) =>
+          prev.filter((r) => r.requestId !== requestId)
+        );
+      } else {
+        toast.error(data.message || "Failed to deny join request");
+      }
+    } catch (error) {
+      console.error("Error denying join request:", error);
+      toast.error("Failed to deny join request", "Please try again.");
+    } finally {
+      setApprovingRequest(null);
+    }
+  };
+
   const handleRemoveParticipant = async (participantId: string) => {
     if (!session) return;
 
@@ -681,6 +949,7 @@ export default function TournamentLobbyPage() {
   const isHost = session && currentUserId && session.host?.id === currentUserId;
 
   const isFull = session ? session.currentPlayers >= session.maxPlayers : false;
+  const isInProgress = session?.status === "IN_PROGRESS";
   const canJoin =
     session &&
     !isFull &&
@@ -952,14 +1221,141 @@ export default function TournamentLobbyPage() {
                     This tournament is full ({session.maxPlayers} players)
                   </p>
                 </div>
-              ) : session.status !== "WAITING" &&
-                session.status !== "STARTING" ? (
+              ) : isInProgress ? (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <p className="text-sm text-blue-800 dark:text-blue-200 text-center mb-3">
+                    This tournament has started. Host approval is required to
+                    join.
+                  </p>
+                  {!isHost && !currentParticipant && (
+                    <div className="space-y-3">
+                      {!isSignedIn && (
+                        <div>
+                          <label
+                            htmlFor="request-temporary-name"
+                            className="block text-sm font-medium text-blue-700 dark:text-blue-300 mb-2"
+                          >
+                            Enter Your Name
+                          </label>
+                          <Input
+                            id="request-temporary-name"
+                            type="text"
+                            placeholder="Your name"
+                            value={temporaryName}
+                            onChange={(e) => setTemporaryName(e.target.value)}
+                            maxLength={30}
+                            className="bg-white dark:bg-gray-800"
+                          />
+                        </div>
+                      )}
+                      <Button
+                        onClick={handleRequestJoin}
+                        disabled={
+                          requestingJoin ||
+                          (!isSignedIn && !temporaryName.trim())
+                        }
+                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
+                        size="lg"
+                      >
+                        {requestingJoin ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Sending Request...
+                          </>
+                        ) : (
+                          <>
+                            <Users className="h-4 w-4 mr-2" />
+                            Request to Join
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : session.status === "COMPLETED" ||
+                session.status === "CANCELLED" ? (
                 <div className="bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg p-4 text-center">
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    This tournament has already started or ended
+                    This tournament has ended
                   </p>
                 </div>
               ) : null}
+            </div>
+          )}
+
+          {/* Join Requests (Host Only) */}
+          {isHost && isInProgress && joinRequests.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                Pending Join Requests ({joinRequests.length})
+              </h3>
+              <div className="space-y-2">
+                {joinRequests.map((request) => (
+                  <div
+                    key={request.requestId}
+                    className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={request.user?.avatar || undefined} />
+                        <AvatarFallback>
+                          {request.displayName.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {request.displayName}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {request.hasAccount ? "Has account" : "Guest"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          handleDenyJoinRequest(
+                            request.requestId,
+                            request.displayName
+                          )
+                        }
+                        disabled={approvingRequest === request.requestId}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
+                      >
+                        {approvingRequest === request.requestId ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <X className="h-3 w-3" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() =>
+                          handleApproveJoinRequest(
+                            request.requestId,
+                            request.displayName,
+                            request.userId,
+                            !request.hasAccount
+                              ? request.displayName
+                              : undefined
+                          )
+                        }
+                        disabled={approvingRequest === request.requestId}
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                      >
+                        {approvingRequest === request.requestId ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Check className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

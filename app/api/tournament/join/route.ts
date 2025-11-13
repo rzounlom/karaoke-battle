@@ -39,19 +39,64 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if session is already started or completed
-    if (session.status !== "WAITING" && session.status !== "STARTING") {
+    // Check if session is completed or cancelled
+    if (session.status === "COMPLETED" || session.status === "CANCELLED") {
       return NextResponse.json(
         {
           success: false,
-          message: "This tournament has already started or ended",
+          message: "This tournament has ended",
         },
         { status: 400 }
       );
     }
 
-    // Check if max players reached
-    if (session.participants.length >= session.maxPlayers) {
+    // If tournament is IN_PROGRESS, require host approval
+    const isInProgress = session.status === "IN_PROGRESS";
+    const { hostApproval } = body;
+    
+    if (isInProgress) {
+      // Check if there are slots available
+      if (session.participants.length >= session.maxPlayers) {
+        return NextResponse.json(
+          { success: false, message: "Tournament is full" },
+          { status: 400 }
+        );
+      }
+
+      // Require host approval for IN_PROGRESS tournaments
+      if (!hostApproval) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Host approval required to join a tournament in progress",
+            requiresHostApproval: true,
+          },
+          { status: 403 }
+        );
+      }
+
+      // Verify the approval is from the host
+      let dbUser = null;
+      if (user) {
+        dbUser = await prisma.user.findUnique({
+          where: { clerkId: user.id },
+        });
+      }
+
+      if (!dbUser || session.hostId !== dbUser.id) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Only the host can approve joining a tournament in progress",
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Check if max players reached (only for WAITING/STARTING tournaments)
+    // IN_PROGRESS tournaments are checked above
+    if (!isInProgress && session.participants.length >= session.maxPlayers) {
       return NextResponse.json(
         { success: false, message: "Tournament is full" },
         { status: 400 }
