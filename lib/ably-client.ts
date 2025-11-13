@@ -2,11 +2,16 @@ import Ably from "ably";
 
 /**
  * Get an Ably client instance for client-side use
- * @param token - Ably token (generated server-side via API route)
+ * @param tokenRequest - Ably token request object (generated server-side via API route)
  * @returns Ably Realtime client
  */
-export function getAblyClient(token: string): Ably.Realtime {
-  return new Ably.Realtime({ token });
+export function getAblyClient(tokenRequest: Ably.TokenRequest): Ably.Realtime {
+  return new Ably.Realtime({
+    authCallback: async (tokenParams, callback) => {
+      // Return the token request directly
+      callback(null, tokenRequest);
+    },
+  });
 }
 
 /**

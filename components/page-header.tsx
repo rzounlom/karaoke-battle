@@ -11,7 +11,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { useUser } from "@clerk/nextjs";
 
 interface PageHeaderProps {
-  title: string;
+  title?: string;
   subtitle?: string;
   showBackButton?: boolean;
   backHref?: string;
@@ -34,7 +34,7 @@ export function PageHeader({
   const shouldShowNavigation = isSignedIn && showNavigation && !isGameplayPage;
 
   // Main navigation pages - don't show page title for these
-  const mainNavPages = ["/songs", "/performances", "/friends", "/battles", "/profile"];
+  const mainNavPages = ["/songs", "/performances", "/friends", "/battles", "/tournaments", "/profile"];
   const isMainNavPage = mainNavPages.includes(pathname);
 
   const handleBackClick = () => {
@@ -127,6 +127,21 @@ export function PageHeader({
               </Button>
             </Link>
 
+            <Link href="/tournaments">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`flex items-center space-x-2 ${
+                  pathname.startsWith("/tournament")
+                    ? "text-purple-600 dark:text-purple-400"
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
+              >
+                <Trophy className="h-4 w-4" />
+                <span>Tournaments</span>
+              </Button>
+            </Link>
+
             <Link href="/profile">
               <Button
                 variant="ghost"
@@ -145,7 +160,7 @@ export function PageHeader({
         )}
 
         {/* Page Title - Only show if different from Karaoke Battle and not a main nav page */}
-        {title !== "Karaoke Battle" && !isMainNavPage && (
+        {title && title !== "Karaoke Battle" && !isMainNavPage && (
           <div className="text-gray-900 dark:text-white">
             <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-300">
               {title}

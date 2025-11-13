@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { publishTournamentEvent } from "@/lib/ably-server";
 
 export async function POST(req: NextRequest) {
   try {
@@ -146,6 +147,18 @@ export async function POST(req: NextRequest) {
             avatar: true,
           },
         },
+      },
+    });
+
+    // Broadcast player joined event via Ably
+    await publishTournamentEvent(sessionCode, "player_joined", {
+      participant: {
+        id: participant.id,
+        displayName: participant.displayName,
+        turnOrder: participant.turnOrder,
+        isReady: participant.isReady,
+        hasAccount: participant.hasAccount,
+        user: participant.user,
       },
     });
 
