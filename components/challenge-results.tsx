@@ -64,8 +64,10 @@ export function ChallengeResults({
     (p) => p.status === "ACCEPTED"
   );
 
+  // Exclude current user from pending participants (they just completed)
   const pendingParticipants = allParticipants.filter(
-    (p) => p.score === null || p.completedAt === null
+    (p) =>
+      p.userId !== currentUserId && (p.score === null || p.completedAt === null)
   );
 
   const completedParticipants = allParticipants.filter(
@@ -102,7 +104,9 @@ export function ChallengeResults({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-muted-foreground">Your Score</p>
-            <p className="text-3xl font-bold">{currentUserScore.toLocaleString()}</p>
+            <p className="text-3xl font-bold">
+              {currentUserScore.toLocaleString()}
+            </p>
           </div>
           {resultStatus === "won" && (
             <div className="text-right">
@@ -160,7 +164,8 @@ export function ChallengeResults({
                     </Avatar>
                     <div>
                       <p className="font-medium">
-                        {participant.user.firstName || participant.user.username}
+                        {participant.user.firstName ||
+                          participant.user.username}
                         {isCurrentUser && " (You)"}
                       </p>
                       <p className="text-sm text-muted-foreground">
@@ -201,7 +206,12 @@ export function ChallengeResults({
                 key={participant.id}
                 className="text-sm text-blue-600 dark:text-blue-300"
               >
-                • {participant.user.firstName || participant.user.username}
+                •{" "}
+                {participant.user.username ||
+                  `${participant.user.firstName || ""} ${
+                    participant.user.lastName || ""
+                  }`.trim() ||
+                  "Unknown User"}
               </p>
             ))}
           </div>
@@ -242,4 +252,3 @@ export function ChallengeResults({
     </Card>
   );
 }
-

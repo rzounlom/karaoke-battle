@@ -16,6 +16,7 @@ interface PageHeaderProps {
   showBackButton?: boolean;
   backHref?: string;
   showNavigation?: boolean;
+  forceShowNavigation?: boolean; // Override the gameplay page check
 }
 
 export function PageHeader({
@@ -24,14 +25,15 @@ export function PageHeader({
   showBackButton = false,
   backHref = "/",
   showNavigation = true,
+  forceShowNavigation = false,
 }: PageHeaderProps) {
   const { isSignedIn } = useUser();
   const pathname = usePathname();
   const router = useRouter();
 
-  // Hide navigation on gameplay pages
+  // Hide navigation on gameplay pages (unless forced)
   const isGameplayPage = pathname.startsWith("/gameplay");
-  const shouldShowNavigation = isSignedIn && showNavigation && !isGameplayPage;
+  const shouldShowNavigation = isSignedIn && showNavigation && (!isGameplayPage || forceShowNavigation);
 
   // Main navigation pages - don't show page title for these
   const mainNavPages = ["/songs", "/performances", "/friends", "/battles", "/tournaments", "/profile"];

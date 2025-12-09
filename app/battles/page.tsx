@@ -72,14 +72,44 @@ export default function BattlesPage() {
   const [acceptingChallengeId, setAcceptingChallengeId] = useState<
     string | null
   >(null);
+  const [previousBattles, setPreviousBattles] = useState<typeof battles>(null);
+  const [activeTab, setActiveTab] = useState<string>("active");
 
   const {
     loadNotifications: loadChallengeNotifications,
     removeNotification: removeChallengeNotification,
   } = useChallengeNotifications();
 
+  // Load battles on mount and when tab changes
   useEffect(() => {
     loadBattles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Poll for updates every 30 seconds when user is on the battles page
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadBattles();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Reload when user switches back to the tab/window
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        loadBattles();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadBattles = async () => {
@@ -89,14 +119,72 @@ export default function BattlesPage() {
       const data = await response.json();
 
       if (data.success) {
-        setBattles({
+        const newBattles = {
           pendingReceived: data.pendingReceived || [],
           pendingSent: data.pendingSent || [],
           active: data.active || [],
           completed: data.completed || [],
           declined: data.declined || [],
           expired: data.expired || [],
-        });
+        };
+
+        // Check for opponent completions and status changes
+        if (previousBattles) {
+          // Check active battles for new completions
+          newBattles.active.forEach((newBattle: Battle) => {
+            const oldBattle = previousBattles.active.find(
+              (b) => b.id === newBattle.id
+            );
+            if (oldBattle) {
+              // Check if any participant completed since last check
+              newBattle.participants.forEach((newParticipant: Battle["participants"][0]) => {
+                const oldParticipant = oldBattle.participants.find(
+                  (p) => p.id === newParticipant.id
+                );
+                if (
+                  oldParticipant &&
+                  oldParticipant.score === null &&
+                  newParticipant.score !== null
+                ) {
+                  // Opponent just completed!
+                  const opponentName =
+                    newParticipant.user.username ||
+                    `${newParticipant.user.firstName || ""} ${
+                      newParticipant.user.lastName || ""
+                    }`.trim() ||
+                    "Opponent";
+                  toast.success(
+                    "Opponent Completed!",
+                    `${opponentName} has completed the challenge with a score of ${newParticipant.score.toLocaleString()}!`
+                  );
+                }
+              });
+
+              // Check if challenge was just completed
+              if (
+                oldBattle.status !== "COMPLETED" &&
+                newBattle.status === "COMPLETED"
+              ) {
+                if (newBattle.winner) {
+                  const winnerName =
+                    newBattle.winner.username ||
+                    `${newBattle.winner.firstName || ""} ${
+                      newBattle.winner.lastName || ""
+                    }`.trim();
+                  toast.success(
+                    "Battle Completed!",
+                    `${winnerName} won the battle!`
+                  );
+                } else {
+                  toast.success("Battle Completed!", "The battle has ended.");
+                }
+              }
+            }
+          });
+        }
+
+        setBattles(newBattles);
+        setPreviousBattles(newBattles);
       }
     } catch (error) {
       console.error("Error loading battles:", error);
@@ -296,25 +384,61 @@ export default function BattlesPage() {
             {getStatusBadge(battle.status)}
           </div>
 
-          {hasScores && (
+          {/* Show participant status and scores - always show for active battles */}
+          {(battle.status === "IN_PROGRESS" ||
+            battle.status === "ACCEPTED" ||
+            battle.status === "COMPLETED" ||
+            hasScores) && (
             <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-              <div className="grid grid-cols-2 gap-2">
-                {battle.participants.map((participant) => (
-                  <div key={participant.id} className="text-xs">
-                    <span className="font-medium text-gray-700 dark:text-gray-300">
-                      {participant.user.username ||
-                        `${participant.user.firstName || ""} ${
-                          participant.user.lastName || ""
-                        }`.trim()}
-                      :
-                    </span>{" "}
-                    <span className="text-gray-600 dark:text-gray-400">
-                      {participant.score !== null
-                        ? participant.score.toLocaleString()
-                        : "Pending"}
-                    </span>
-                  </div>
-                ))}
+              <div className="space-y-2">
+                {battle.participants
+                  .filter((p) => p.status === "ACCEPTED") // Only show accepted participants
+                  .map((participant) => {
+                    const hasCompleted =
+                      participant.score !== null &&
+                      participant.completedAt !== null;
+                    return (
+                      <div
+                        key={participant.id}
+                        className={`flex items-center justify-between p-2 rounded-lg ${
+                          hasCompleted
+                            ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                            : "bg-gray-50 dark:bg-gray-800/50"
+                        }`}
+                      >
+                        <div className="flex items-center space-x-2">
+                          {hasCompleted ? (
+                            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          ) : (
+                            <Clock className="h-4 w-4 text-orange-500" />
+                          )}
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {participant.user.username ||
+                              `${participant.user.firstName || ""} ${
+                                participant.user.lastName || ""
+                              }`.trim() ||
+                              "Unknown User"}
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          {hasCompleted ? (
+                            <>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                {participant.score?.toLocaleString()}
+                              </span>
+                              <p className="text-xs text-green-600 dark:text-green-400">
+                                Completed
+                              </p>
+                            </>
+                          ) : (
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              Pending
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}
@@ -401,7 +525,7 @@ export default function BattlesPage() {
                 <Link
                   href={`/gameplay?songId=${
                     battle.song.customId || battle.song.id
-                  }&battleId=${battle.id}`}
+                  }&challengeId=${battle.id}`}
                 >
                   <Button
                     size="sm"
@@ -453,7 +577,15 @@ export default function BattlesPage() {
           </p>
         </div>
 
-        <Tabs defaultValue="active" className="space-y-6">
+        <Tabs
+          defaultValue="active"
+          value={activeTab}
+          onValueChange={(value) => {
+            setActiveTab(value);
+            // loadBattles will be triggered by the useEffect that watches activeTab
+          }}
+          className="space-y-6"
+        >
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="active" className="flex items-center gap-2">
               <Sword className="h-4 w-4" />

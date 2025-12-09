@@ -80,11 +80,27 @@ export async function POST(
     }
 
     // Find participant record for current user
+    console.log("🔍 Looking for participant:", {
+      userId: dbUser.id,
+      challengeId: challengeId,
+      participantsCount: challenge.participants.length,
+      participantUserIds: challenge.participants.map((p) => p.userId),
+    });
+
     const participant = challenge.participants.find(
       (p) => p.userId === dbUser.id
     );
 
     if (!participant) {
+      console.error("❌ Participant not found:", {
+        userId: dbUser.id,
+        challengeId: challengeId,
+        participants: challenge.participants.map((p) => ({
+          id: p.id,
+          userId: p.userId,
+          status: p.status,
+        })),
+      });
       return NextResponse.json(
         {
           success: false,
@@ -93,6 +109,13 @@ export async function POST(
         { status: 403 }
       );
     }
+
+    console.log("✅ Participant found:", {
+      participantId: participant.id,
+      userId: participant.userId,
+      status: participant.status,
+      currentScore: participant.score,
+    });
 
     // Validate participant has accepted
     if (participant.status !== "ACCEPTED") {
@@ -265,12 +288,44 @@ export async function POST(
     }
 
     // Update participant with score
-    await prisma.challengeParticipant.update({
+    console.log("📝 Updating participant score:", {
+      participantId: participant.id,
+      userId: dbUser.id,
+      challengeId: challengeId,
+      score: Math.round(totalScore),
+    });
+
+    const updatedParticipant = await prisma.challengeParticipant.update({
       where: { id: participant.id },
       data: {
         score: Math.round(totalScore),
         completedAt: new Date(),
       },
+    });
+
+    console.log("✅ Participant score updated successfully:", {
+      participantId: updatedParticipant.id,
+      score: updatedParticipant.score,
+      completedAt: updatedParticipant.completedAt,
+    });
+
+    // Verify the update was saved by fetching it again
+    const verification = await prisma.challengeParticipant.findUnique({
+      where: { id: participant.id },
+    });
+    
+    if (!verification || verification.score === null) {
+      console.error("❌ CRITICAL: Score update verification failed!", {
+        participantId: participant.id,
+        verification: verification,
+      });
+      throw new Error("Failed to save participant score to database");
+    }
+
+    console.log("✅ Score update verified in database:", {
+      participantId: verification.id,
+      score: verification.score,
+      completedAt: verification.completedAt,
     });
 
     // Get all accepted participants
@@ -425,9 +480,17 @@ export async function POST(
       pointsAwarded: isWinner ? pointsAwarded : 0,
     });
   } catch (error) {
-    console.error("Error submitting challenge score:", error);
+    console.error("❌ CRITICAL ERROR submitting challenge score:", error);
+    console.error("Error details:", {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
-      { success: false, message: "Internal server error" },
+      { 
+        success: false, 
+        message: error instanceof Error ? error.message : "Internal server error",
+        error: process.env.NODE_ENV === "development" ? String(error) : undefined,
+      },
       { status: 500 }
     );
   }

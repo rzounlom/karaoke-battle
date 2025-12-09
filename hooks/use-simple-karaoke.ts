@@ -311,12 +311,23 @@ export function useSimpleKaraoke(options: UseSimpleKaraokeOptions = {}) {
       player.onTimeUpdateCallback((time) => {
         const currentLyric = player.getCurrentLyric();
         const upcomingLyrics = player.getUpcomingLyrics(2);
-        setState((prev) => ({
-          ...prev,
-          currentTime: time,
-          currentLyric,
-          upcomingLyrics,
-        }));
+        // Use functional update to avoid dependency issues
+        setState((prev) => {
+          // Only update if values actually changed to prevent infinite loops
+          if (
+            prev.currentTime === time &&
+            prev.currentLyric === currentLyric &&
+            JSON.stringify(prev.upcomingLyrics) === JSON.stringify(upcomingLyrics)
+          ) {
+            return prev;
+          }
+          return {
+            ...prev,
+            currentTime: time,
+            currentLyric,
+            upcomingLyrics,
+          };
+        });
       });
 
       player.onPlayCallback(() => {

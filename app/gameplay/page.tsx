@@ -11,6 +11,7 @@ import {
   RotateCcw,
   Settings,
   Square,
+  Sword,
   Trophy,
   XCircle,
 } from "lucide-react";
@@ -29,6 +30,7 @@ import { LyricsDisplayWithFrequency } from "@/components/lyrics-display-with-fre
 import { ProtectedRoute } from "@/components/protected-route";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { UserProfile } from "@/components/user-profile";
+import { PageHeader } from "@/components/page-header";
 import { debugLog } from "@/lib/debug";
 import { formatTime } from "@/lib/utils";
 import { getLevelTitle } from "@/lib/experience";
@@ -42,7 +44,11 @@ import { useUser } from "@clerk/nextjs";
 function GameplayContent() {
   const searchParams = useSearchParams();
   const songId = searchParams.get("songId") || "bohemian-rhapsody";
-  const challengeId = searchParams.get("challengeId");
+  // Support both challengeId and battleId for backwards compatibility
+  const challengeId =
+    searchParams.get("challengeId") || searchParams.get("battleId");
+  const tournamentSession = searchParams.get("tournamentSession");
+  const turnId = searchParams.get("turnId");
 
   const { user } = useUser();
   const currentSong = getSongById(songId);
@@ -270,42 +276,66 @@ function GameplayContent() {
         scoringEvents: scoringEvents,
       });
 
-      // Submit to challenge if in challenge mode
-      if (challengeId && challenge) {
-        await submitChallengeScore(totalScoreWithBonuses);
+      // Submit to tournament if in tournament mode
+      if (tournamentSession && turnId) {
+        await submitTournamentScore(totalScoreWithBonuses);
+        return; // Tournament submission handles its own redirect
       }
 
-      // Update user experience - session is confirmed for natural completion
-      try {
-        const response = await fetch("/api/user/experience", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            totalScore: totalScoreWithBonuses,
-            accuracy: decayedAccuracy,
-            timing: decayedTiming,
-            songDifficulty: currentSong?.difficulty || "MEDIUM",
-            songId: currentSong?.id,
-            gameEndReason: "completed",
-          }),
+      // Submit to challenge if in challenge mode
+      if (challengeId) {
+        console.log("🎯 Attempting to submit challenge score:", {
+          challengeId,
+          totalScore: totalScoreWithBonuses,
+          challengeExists: !!challenge,
+          challengeStatus: challenge?.status,
         });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            debugLog("Experience updated:", data);
-            if (data.leveledUp) {
-              debugLog("🎉 Level up! New level:", data.newLevel);
-            }
-
-            // Refresh leaderboard after completing song
-            fetchLeaderboard();
-          }
+        
+        // Submit score - function will handle if challenge isn't loaded
+        const submitted = await submitChallengeScore(totalScoreWithBonuses);
+        
+        if (!submitted) {
+          console.error("❌ Challenge score submission failed or returned false");
+        } else {
+          console.log("✅ Challenge score submission completed successfully");
         }
-      } catch (error) {
-        console.error("Error updating experience:", error);
+      } else {
+        console.log("ℹ️ No challengeId, skipping challenge submission");
+      }
+
+      // Update user experience - session is confirmed for natural completion (only if not in tournament mode)
+      if (!tournamentSession) {
+        try {
+          const response = await fetch("/api/user/experience", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              totalScore: totalScoreWithBonuses,
+              accuracy: decayedAccuracy,
+              timing: decayedTiming,
+              songDifficulty: currentSong?.difficulty || "MEDIUM",
+              songId: currentSong?.id,
+              gameEndReason: "completed",
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              debugLog("Experience updated:", data);
+              if (data.leveledUp) {
+                debugLog("🎉 Level up! New level:", data.newLevel);
+              }
+
+              // Refresh leaderboard after completing song
+              fetchLeaderboard();
+            }
+          }
+        } catch (error) {
+          console.error("Error updating experience:", error);
+        }
       }
 
       // Show results screen - wait a bit to ensure state is updated
@@ -690,42 +720,50 @@ function GameplayContent() {
       scoringEvents: scoringEvents,
     });
 
+    // Submit to tournament if in tournament mode
+    if (tournamentSession && turnId) {
+      await submitTournamentScore(totalScoreWithBonuses);
+      return; // Tournament submission handles its own redirect
+    }
+
     // Submit to challenge if in challenge mode
     if (challengeId && challenge) {
       await submitChallengeScore(totalScoreWithBonuses);
     }
 
-    // Update user experience - user has explicitly confirmed they want to end the session
-    try {
-      const response = await fetch("/api/user/experience", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          totalScore: totalScoreWithBonuses,
-          accuracy: decayedAccuracy,
-          timing: decayedTiming,
-          songDifficulty: currentSong?.difficulty || "MEDIUM",
-          songId: currentSong?.id,
-          gameEndReason: "quit",
-        }),
-      });
+    // Update user experience - user has explicitly confirmed they want to end the session (only if not in tournament mode)
+    if (!tournamentSession) {
+      try {
+        const response = await fetch("/api/user/experience", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            totalScore: totalScoreWithBonuses,
+            accuracy: decayedAccuracy,
+            timing: decayedTiming,
+            songDifficulty: currentSong?.difficulty || "MEDIUM",
+            songId: currentSong?.id,
+            gameEndReason: "quit",
+          }),
+        });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          console.log("Experience updated:", data);
-          if (data.leveledUp) {
-            console.log("🎉 Level up! New level:", data.newLevel);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            console.log("Experience updated:", data);
+            if (data.leveledUp) {
+              console.log("🎉 Level up! New level:", data.newLevel);
+            }
+
+            // Refresh leaderboard after completing song
+            fetchLeaderboard();
           }
-
-          // Refresh leaderboard after completing song
-          fetchLeaderboard();
         }
+      } catch (error) {
+        console.error("Error updating experience:", error);
       }
-    } catch (error) {
-      console.error("Error updating experience:", error);
     }
 
     // Show results screen
@@ -737,10 +775,112 @@ function GameplayContent() {
     setShowStopModal(false);
   };
 
+  // Submit score to tournament
+  const submitTournamentScore = useCallback(
+    async (totalScore: number) => {
+      if (!tournamentSession || !turnId) return;
+
+      try {
+        debugLog("🏆 Submitting tournament score:", {
+          tournamentSession,
+          turnId,
+          totalScore,
+        });
+
+        // Get participant ID (for guests)
+        const participantId =
+          typeof window !== "undefined"
+            ? sessionStorage.getItem(
+                `tournament_${tournamentSession}_participantId`
+              )
+            : null;
+
+        const response = await fetch("/api/tournament/turn/submit-score", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sessionCode: tournamentSession,
+            turnId: turnId,
+            score: totalScore,
+            ...(participantId ? { participantId } : {}),
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          debugLog("❌ Tournament score submission failed:", errorData);
+          toast.error(
+            "Submission Error",
+            errorData.message || "Failed to submit score to tournament"
+          );
+          return false;
+        }
+
+        const data = await response.json();
+        if (data.success) {
+          debugLog("✅ Tournament score submitted:", data);
+          if (data.xpAwarded) {
+            toast.success(
+              `Score submitted! +${data.xpAwarded} XP`,
+              data.leveledUp ? "Level up!" : undefined
+            );
+          } else {
+            toast.success("Score submitted!", "Your score has been recorded.");
+          }
+
+          // Redirect based on next turn
+          if (data.nextTurn) {
+            // Next player's turn - go to lobby to watch
+            setTimeout(() => {
+              window.location.href = `/tournament/lobby/${tournamentSession}`;
+            }, 2000);
+          } else {
+            // Tournament completed - go to lobby to see results
+            setTimeout(() => {
+              window.location.href = `/tournament/lobby/${tournamentSession}`;
+            }, 2000);
+          }
+          return true;
+        } else {
+          debugLog("❌ Tournament score submission failed:", data);
+          toast.error(
+            "Submission Error",
+            data.message || "Failed to submit score to tournament"
+          );
+          return false;
+        }
+      } catch (error) {
+        console.error("Error submitting tournament score:", error);
+        toast.error("Submission Error", "Failed to submit score to tournament");
+        return false;
+      }
+    },
+    [tournamentSession, turnId]
+  );
+
   // Submit score to challenge
   const submitChallengeScore = useCallback(
     async (totalScore: number) => {
-      if (!challengeId || !challenge) return;
+      if (!challengeId) {
+        console.error("❌ Cannot submit challenge score - missing challengeId");
+        return false;
+      }
+
+      // Don't require challenge to be loaded - we can submit with just challengeId
+      console.log("🏆 Submitting challenge score:", {
+        challengeId,
+        totalScore,
+        challengeLoaded: !!challenge,
+      });
+
+      console.log("🏆 Submitting challenge score:", {
+        challengeId,
+        totalScore,
+        challengeLoaded: !!challenge,
+        challengeStatus: challenge?.status,
+      });
 
       try {
         debugLog("🏆 Submitting challenge score:", {
@@ -758,30 +898,74 @@ function GameplayContent() {
           }),
         });
 
+        console.log("📥 Challenge submission response:", {
+          status: response.status,
+          ok: response.ok,
+          statusText: response.statusText,
+        });
+
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
             debugLog("✅ Challenge score submitted successfully:", data);
-            toast.success(
-              "Score Submitted",
-              "Your score has been submitted to the challenge!"
-            );
 
-            // Refresh challenge data to get updated scores
-            const challengeResponse = await fetch(
-              `/api/challenges/${challengeId}`
-            );
-            if (challengeResponse.ok) {
-              const challengeData = await challengeResponse.json();
-              if (challengeData.success) {
-                setChallenge(challengeData.challenge);
+            // Update challenge state with the response data (already includes updated scores)
+            if (data.challenge) {
+              setChallenge(data.challenge);
+              debugLog(
+                "✅ Challenge data updated from submission:",
+                data.challenge
+              );
+            } else {
+              // Fallback: refresh challenge data if not in response
+              try {
+                const challengeResponse = await fetch(
+                  `/api/challenges/${challengeId}`
+                );
+                if (challengeResponse.ok) {
+                  const challengeData = await challengeResponse.json();
+                  if (challengeData.success) {
+                    setChallenge(challengeData.challenge);
+                    debugLog(
+                      "✅ Challenge data refreshed:",
+                      challengeData.challenge
+                    );
+                  }
+                }
+              } catch (refreshError) {
+                console.error("Error refreshing challenge data:", refreshError);
+                // Don't fail the submission if refresh fails
               }
+            }
+
+            // Show success message with more details
+            if (data.allCompleted) {
+              if (data.winner) {
+                toast.success(
+                  "🎉 You Won!",
+                  `Congratulations! You won the challenge and earned ${
+                    data.pointsAwarded?.toLocaleString() || 0
+                  } points!`
+                );
+              } else {
+                toast.success(
+                  "Challenge Completed",
+                  "All participants have completed. Better luck next time!"
+                );
+              }
+            } else {
+              toast.success(
+                "Score Submitted",
+                "Your score has been submitted! Waiting for other participants..."
+              );
             }
 
             return true;
           }
         } else {
-          const errorData = await response.json();
+          const errorData = await response
+            .json()
+            .catch(() => ({ message: "Network error" }));
           debugLog("❌ Challenge score submission failed:", errorData);
           toast.error(
             "Submission Failed",
@@ -791,11 +975,14 @@ function GameplayContent() {
         }
       } catch (error) {
         console.error("Error submitting challenge score:", error);
-        toast.error("Submission Error", "Failed to submit score to challenge");
+        const errorMessage =
+          error instanceof Error ? error.message : "Network error";
+        // Don't set error state in the hook - just show toast
+        toast.error("Submission Error", errorMessage);
         return false;
       }
     },
-    [challengeId, challenge]
+    [challengeId] // Remove challenge from dependencies - we don't need it loaded to submit
   );
 
   const playAgain = async () => {
@@ -855,7 +1042,8 @@ function GameplayContent() {
         <div>
           <h3 className="font-bold text-lg mb-2">Rules Button</h3>
           <p className="text-gray-600 dark:text-gray-400">
-            Click the Rules button to learn how the scoring system works, including accuracy, timing, and bonus points.
+            Click the Rules button to learn how the scoring system works,
+            including accuracy, timing, and bonus points.
           </p>
         </div>
       ),
@@ -868,7 +1056,8 @@ function GameplayContent() {
         <div>
           <h3 className="font-bold text-lg mb-2">Scoring Button</h3>
           <p className="text-gray-600 dark:text-gray-400">
-            Click the Scoring button to see detailed information about how points are calculated, XP gains, and level progression.
+            Click the Scoring button to see detailed information about how
+            points are calculated, XP gains, and level progression.
           </p>
         </div>
       ),
@@ -880,7 +1069,8 @@ function GameplayContent() {
         <div>
           <h3 className="font-bold text-lg mb-2">Score Tracking</h3>
           <p className="text-gray-600 dark:text-gray-400">
-            Your current score is displayed here in real-time. Watch it increase as you sing accurately and hit the right notes!
+            Your current score is displayed here in real-time. Watch it increase
+            as you sing accurately and hit the right notes!
           </p>
         </div>
       ),
@@ -892,7 +1082,8 @@ function GameplayContent() {
         <div>
           <h3 className="font-bold text-lg mb-2">Your Ranking & XP</h3>
           <p className="text-gray-600 dark:text-gray-400">
-            View your current level, XP progress, and ranking. Complete songs to earn XP and level up!
+            View your current level, XP progress, and ranking. Complete songs to
+            earn XP and level up!
           </p>
         </div>
       ),
@@ -904,7 +1095,8 @@ function GameplayContent() {
         <div>
           <h3 className="font-bold text-lg mb-2">Light/Dark Mode</h3>
           <p className="text-gray-600 dark:text-gray-400">
-            Toggle between light and dark mode to customize your viewing experience. Choose what works best for you!
+            Toggle between light and dark mode to customize your viewing
+            experience. Choose what works best for you!
           </p>
         </div>
       ),
@@ -916,7 +1108,8 @@ function GameplayContent() {
         <div>
           <h3 className="font-bold text-lg mb-2">Leaderboard</h3>
           <p className="text-gray-600 dark:text-gray-400">
-            See how you rank against other players for this song. Your best score and rank will be displayed at the bottom of the leaderboard.
+            See how you rank against other players for this song. Your best
+            score and rank will be displayed at the bottom of the leaderboard.
           </p>
         </div>
       ),
@@ -949,7 +1142,8 @@ function GameplayContent() {
         <div>
           <h3 className="font-bold text-lg mb-2">Full-Screen Mode</h3>
           <p className="text-gray-600 dark:text-gray-400">
-            Click this button to enter full-screen mode for an immersive karaoke experience. Press Escape or click again to exit full-screen.
+            Click this button to enter full-screen mode for an immersive karaoke
+            experience. Press Escape or click again to exit full-screen.
           </p>
         </div>
       ),
@@ -1089,21 +1283,13 @@ function GameplayContent() {
     return (
       <ProtectedRoute>
         <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
-          {/* Header */}
-          <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-4">
-              <div className="text-gray-900 dark:text-white">
-                <h1 className="text-lg font-semibold">Final Results</h1>
-                <p className="text-sm text-gray-600 dark:text-white/70">
-                  {currentSong.title} by {currentSong.artist}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <UserProfile />
-              <ThemeToggle />
-            </div>
-          </header>
+          {/* Main Navigation Header */}
+          <PageHeader 
+            title="Final Results" 
+            subtitle={`${currentSong.title} by ${currentSong.artist}`}
+            showNavigation={true}
+            forceShowNavigation={true}
+          />
 
           <div className="container mx-auto px-4 py-8">
             <div className="max-w-2xl mx-auto space-y-6">
@@ -1477,6 +1663,54 @@ function GameplayContent() {
         </header>
 
         <div className="container mx-auto px-4 py-6">
+          {/* Battle Mode Banner */}
+          {challenge && challengeId && (
+            <div className="mb-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg p-4 text-white shadow-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Sword className="h-6 w-6" />
+                  <div>
+                    <h3 className="font-bold text-lg">Battle Mode Active</h3>
+                    <p className="text-sm text-white/90">
+                      Competing against{" "}
+                      {challenge.participants
+                        .filter((p) => p.userId !== currentUserId)
+                        .map(
+                          (p) =>
+                            p.user.username ||
+                            `${p.user.firstName || ""} ${
+                              p.user.lastName || ""
+                            }`.trim() ||
+                            "opponent"
+                        )
+                        .join(", ")}
+                    </p>
+                  </div>
+                </div>
+                {challenge.expiresAt && (
+                  <div className="text-right">
+                    <p className="text-xs text-white/80">Time Remaining</p>
+                    <p className="font-semibold">
+                      {(() => {
+                        const timeRemaining =
+                          new Date(challenge.expiresAt).getTime() - Date.now();
+                        const hours = Math.floor(
+                          timeRemaining / (1000 * 60 * 60)
+                        );
+                        const minutes = Math.floor(
+                          (timeRemaining % (1000 * 60 * 60)) / (1000 * 60)
+                        );
+                        return hours > 0
+                          ? `${hours}h ${minutes}m`
+                          : `${minutes}m`;
+                      })()}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
             {/* Main Gameplay Area */}
             <div className="lg:col-span-2 space-y-6">
