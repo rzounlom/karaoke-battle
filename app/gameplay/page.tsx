@@ -109,6 +109,7 @@ function GameplayContent() {
 
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [challengePointsAwarded, setChallengePointsAwarded] = useState<number | undefined>(undefined);
 
   // Score decay system
   const [lastVoiceActivity, setLastVoiceActivity] = useState<number>(
@@ -938,6 +939,11 @@ function GameplayContent() {
               }
             }
 
+            // Store points awarded if user won
+            if (data.winner && data.pointsAwarded) {
+              setChallengePointsAwarded(data.pointsAwarded);
+            }
+
             // Show success message with more details
             if (data.allCompleted) {
               if (data.winner) {
@@ -945,7 +951,7 @@ function GameplayContent() {
                   "🎉 You Won!",
                   `Congratulations! You won the challenge and earned ${
                     data.pointsAwarded?.toLocaleString() || 0
-                  } points!`
+                  } XP!`
                 );
               } else {
                 toast.success(
@@ -1299,6 +1305,7 @@ function GameplayContent() {
                   challenge={challenge}
                   currentUserId={currentUserId}
                   currentUserScore={finalScore.totalScore}
+                  pointsAwarded={challengePointsAwarded}
                   onViewDetails={() => {
                     window.location.href = `/battles`;
                   }}

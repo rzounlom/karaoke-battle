@@ -38,6 +38,7 @@ interface ChallengeResultsProps {
   };
   currentUserId: string;
   currentUserScore: number;
+  pointsAwarded?: number;
   onViewDetails?: () => void;
 }
 
@@ -45,6 +46,7 @@ export function ChallengeResults({
   challenge,
   currentUserId,
   currentUserScore,
+  pointsAwarded,
   onViewDetails,
 }: ChallengeResultsProps) {
   // Sort participants by score (highest first)
@@ -222,8 +224,10 @@ export function ChallengeResults({
       {resultStatus === "won" && (
         <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
           <p className="font-medium text-yellow-700 dark:text-yellow-400">
-            🎉 Congratulations! You won this battle! You&apos;ve earned 15,000
-            points per opponent you beat!
+            🎉 Congratulations! You won this battle!
+            {pointsAwarded !== undefined && pointsAwarded > 0 && (
+              <> You&apos;ve earned {pointsAwarded.toLocaleString()} XP!</>
+            )}
           </p>
         </div>
       )}

@@ -13,6 +13,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { useChallengeNotifications } from "@/hooks/use-challenge-notifications";
 import { toast } from "@/lib/toast";
+import { useUser } from "@clerk/nextjs";
 
 interface Battle {
   id: string;
@@ -60,6 +61,7 @@ interface Battle {
 }
 
 export default function BattlesPage() {
+  const { user } = useUser();
   const [battles, setBattles] = useState<{
     pendingReceived: Battle[];
     pendingSent: Battle[];
@@ -74,11 +76,33 @@ export default function BattlesPage() {
   >(null);
   const [previousBattles, setPreviousBattles] = useState<typeof battles>(null);
   const [activeTab, setActiveTab] = useState<string>("active");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const {
     loadNotifications: loadChallengeNotifications,
     removeNotification: removeChallengeNotification,
   } = useChallengeNotifications();
+
+  // Get current user's database ID
+  useEffect(() => {
+    const fetchCurrentUserId = async () => {
+      if (!user?.id) return;
+
+      try {
+        const response = await fetch("/api/user/profile");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.user) {
+            setCurrentUserId(data.user.id);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching user ID:", error);
+      }
+    };
+
+    fetchCurrentUserId();
+  }, [user?.id]);
 
   // Load battles on mount and when tab changes
   useEffect(() => {
@@ -86,11 +110,11 @@ export default function BattlesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // Poll for updates every 30 seconds when user is on the battles page
+  // Poll for updates every 1 minute when user is on the battles page
   useEffect(() => {
     const interval = setInterval(() => {
       loadBattles();
-    }, 30000); // 30 seconds
+    }, 60000); // 1 minute
 
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -355,31 +379,43 @@ export default function BattlesPage() {
     const participantNames = getParticipantNames(battle);
     const hasScores = battle.participants.some((p) => p.score !== null);
     const isAccepting = acceptingChallengeId === battle.id;
+    
+    // Check if current user has already completed this battle
+    const currentUserParticipant = currentUserId
+      ? battle.participants.find((p) => p.userId === currentUserId)
+      : null;
+    const hasCurrentUserCompleted =
+      currentUserParticipant?.score !== null &&
+      currentUserParticipant?.completedAt !== null;
+
+    // Get opponent(s) - participants who are not the current user
+    const opponents = currentUserId
+      ? battle.participants.filter((p) => p.userId !== currentUserId && p.status === "ACCEPTED")
+      : battle.participants.filter((p) => p.status === "ACCEPTED");
+    
+    // Determine which avatar to show:
+    // - If battle is completed and has a winner, show winner's avatar
+    // - Otherwise, show the first opponent's avatar (or challenger if no opponents found)
+    const avatarUser = battle.winner
+      ? battle.participants.find((p) => p.userId === battle.winner!.id)?.user
+      : opponents.length > 0
+      ? opponents[0].user
+      : battle.challenger;
 
     return (
       <Card key={battle.id} className="hover:shadow-md transition-shadow">
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-3">
-            <div className="flex items-center space-x-3 flex-1 min-w-0">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={battle.challenger.avatar || undefined} />
-                <AvatarFallback>
-                  {battle.challenger.username?.charAt(0) ||
-                    battle.challenger.firstName?.charAt(0) ||
-                    "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                  {battle.song.title}
-                </p>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  {battle.song.artist}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                  Participants: {participantNames}
-                </p>
-              </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                {battle.song.title}
+              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {battle.song.artist}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                Participants: {participantNames}
+              </p>
             </div>
             {getStatusBadge(battle.status)}
           </div>
@@ -407,6 +443,14 @@ export default function BattlesPage() {
                         }`}
                       >
                         <div className="flex items-center space-x-2">
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage src={participant.user.avatar || undefined} />
+                            <AvatarFallback className="text-xs">
+                              {participant.user.username?.charAt(0) ||
+                                participant.user.firstName?.charAt(0) ||
+                                "?"}
+                            </AvatarFallback>
+                          </Avatar>
                           {hasCompleted ? (
                             <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                           ) : (
@@ -522,19 +566,30 @@ export default function BattlesPage() {
             (battle.status === "ACCEPTED" ||
               battle.status === "IN_PROGRESS") && (
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                <Link
-                  href={`/gameplay?songId=${
-                    battle.song.customId || battle.song.id
-                  }&challengeId=${battle.id}`}
-                >
+                {hasCurrentUserCompleted ? (
                   <Button
                     size="sm"
-                    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                    disabled
+                    className="w-full bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
                   >
-                    <Sword className="h-4 w-4 mr-2" />
-                    Play Battle
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Already Completed
                   </Button>
-                </Link>
+                ) : (
+                  <Link
+                    href={`/gameplay?songId=${
+                      battle.song.customId || battle.song.id
+                    }&challengeId=${battle.id}`}
+                  >
+                    <Button
+                      size="sm"
+                      className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                    >
+                      <Sword className="h-4 w-4 mr-2" />
+                      Play Battle
+                    </Button>
+                  </Link>
+                )}
               </div>
             )}
 
@@ -700,15 +755,13 @@ export default function BattlesPage() {
 
           <TabsContent value="history" className="space-y-4">
             <div className="space-y-6">
-              {(battles?.declined.length || 0) > 0 && (
+              {(battles?.completed.length || 0) > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                    Declined ({battles?.declined.length || 0})
+                    Completed ({battles?.completed.length || 0})
                   </h3>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {battles?.declined.map((battle) =>
-                      renderBattleCard(battle)
-                    )}
+                    {battles?.completed.map((battle) => renderBattleCard(battle))}
                   </div>
                 </div>
               )}
@@ -722,7 +775,19 @@ export default function BattlesPage() {
                   </div>
                 </div>
               )}
-              {!battles?.declined.length && !battles?.expired.length && (
+              {(battles?.declined.length || 0) > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                    Declined ({battles?.declined.length || 0})
+                  </h3>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {battles?.declined.map((battle) =>
+                      renderBattleCard(battle)
+                    )}
+                  </div>
+                </div>
+              )}
+              {!battles?.completed.length && !battles?.declined.length && !battles?.expired.length && (
                 <Card>
                   <CardContent className="text-center py-8">
                     <XCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -730,7 +795,7 @@ export default function BattlesPage() {
                       No History
                     </h3>
                     <p className="text-gray-600 dark:text-gray-300">
-                      No declined or expired battles.
+                      No completed, expired, or declined battles.
                     </p>
                   </CardContent>
                 </Card>

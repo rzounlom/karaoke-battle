@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { addExperience } from "@/lib/experience";
+import { addExperience, calculateExperienceFromScore } from "@/lib/experience";
 
 /**
  * Check and process expired challenges
@@ -63,6 +63,7 @@ export async function processExpiredChallenges() {
         winnerId: null,
       },
       include: {
+        song: true,
         participants: {
           where: {
             status: "ACCEPTED",
@@ -111,7 +112,7 @@ export async function processExpiredChallenges() {
       }
 
       if (winnerId) {
-        // Calculate points: 15,000 * (number of other accepted participants)
+        // Calculate XP: Award XP equivalent to getting a perfect score per opponent beaten
         const acceptedParticipants = challenge.participants.filter(
           (p) => p.status === "ACCEPTED"
         );
@@ -119,9 +120,21 @@ export async function processExpiredChallenges() {
           0,
           acceptedParticipants.length - 1
         );
-        const pointsAwarded = 15000 * otherParticipantsCount;
 
-        // Award points to winner
+        // Calculate XP as if they scored 100 (perfect) for each opponent
+        // This simulates getting a perfect song performance for each opponent beaten
+        const xpPerOpponent = calculateExperienceFromScore(
+          100, // Perfect score (0-100 scale)
+          100, // Perfect accuracy
+          100, // Perfect timing
+          100, // Perfect pitch
+          challenge.song?.difficulty || "MEDIUM" // Use challenge song difficulty
+        );
+
+        // Total XP = XP per perfect performance × number of opponents
+        const pointsAwarded = xpPerOpponent * otherParticipantsCount;
+
+        // Award XP to winner
         if (pointsAwarded > 0) {
           const winner = await prisma.user.findUnique({
             where: { id: winnerId },
