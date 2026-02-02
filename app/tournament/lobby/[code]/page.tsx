@@ -111,6 +111,38 @@ export default function TournamentLobbyPage() {
   const [currentParticipantId, setCurrentParticipantId] = useState<
     string | null
   >(null);
+  const [currentTurn, setCurrentTurn] = useState<{
+    id: string;
+    turnNumber: number;
+    participant: {
+      id: string;
+      displayName: string;
+      turnOrder: number;
+    };
+    song: {
+      id: string;
+      title: string;
+      artist: string;
+    } | null;
+    status: string;
+    score: number | null;
+  } | null>(null);
+  const [leaderboard, setLeaderboard] = useState<
+    Array<{
+      rank: number;
+      id: string;
+      displayName: string;
+      totalScore: number;
+      turnOrder: number;
+      user: {
+        id: string;
+        username: string | null;
+        firstName: string | null;
+        lastName: string | null;
+        avatar: string | null;
+      } | null;
+    }>
+  >([]);
 
   // Get current user's database ID and clear state on sign out
   useEffect(() => {
@@ -149,18 +181,29 @@ export default function TournamentLobbyPage() {
     fetchCurrentUserId();
   }, [isSignedIn, clerkUser, sessionCode]);
 
-  // Set up Ably real-time updates (only for authenticated users)
-  // Note: Unauthenticated users can still view the lobby, but won't get real-time updates
+  // Set up Ably real-time updates (for both authenticated and guest users)
   useEffect(() => {
-    if (!sessionCode || !isSignedIn) return;
+    if (!sessionCode) return;
 
     let mounted = true;
 
     const setupAbly = async () => {
       try {
-        // Get Ably token
+        // Get participant ID for guests
+        const participantIdForToken =
+          !isSignedIn && typeof window !== "undefined"
+            ? sessionStorage.getItem(`tournament_${sessionCode}_participantId`)
+            : null;
+
+        // Get Ably token (works for both authenticated and guest users)
         const tokenResponse = await fetch("/api/tournament/ably-token", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            participantIdForToken
+              ? { sessionCode, participantId: participantIdForToken }
+              : {}
+          ),
         });
         const tokenData = await tokenResponse.json();
 
@@ -211,13 +254,29 @@ export default function TournamentLobbyPage() {
         channel.subscribe("tournament_started", (message) => {
           if (mounted) {
             const { firstTurn } = message.data as {
-              firstTurn: { id: string };
+              firstTurn: { id: string; participant: { id: string } };
             };
-            toast.success("Tournament started!", "Redirecting to gameplay...");
-            // Redirect to gameplay with turn info
-            router.push(
-              `/gameplay?tournamentSession=${sessionCode}&turnId=${firstTurn.id}`
+            toast.success(
+              "Tournament started!",
+              "Redirecting to song selection..."
             );
+            // Check if it's the current user's turn
+            const isMyTurn =
+              (currentUserId &&
+                session?.participants.find((p) => p.user?.id === currentUserId)
+                  ?.id === firstTurn.participant.id) ||
+              (typeof window !== "undefined" &&
+                sessionStorage.getItem(
+                  `tournament_${sessionCode}_participantId`
+                ) === firstTurn.participant.id);
+
+            if (isMyTurn) {
+              // Redirect to song selection page
+              router.push(`/tournament/select-song/${sessionCode}`);
+            } else {
+              // Stay in lobby to watch
+              router.push(`/tournament/lobby/${sessionCode}`);
+            }
           }
         });
 
@@ -324,6 +383,135 @@ export default function TournamentLobbyPage() {
             );
           }
         });
+
+        channel.subscribe("next_turn_started", (message) => {
+          if (mounted) {
+            const { turn } = message.data as {
+              turn: {
+                id: string;
+                participant: { id: string };
+              };
+            };
+            // Check if it's the current user's turn
+            const isMyTurn =
+              (currentUserId &&
+                session?.participants.find((p) => p.user?.id === currentUserId)
+                  ?.id === turn.participant.id) ||
+              (typeof window !== "undefined" &&
+                sessionStorage.getItem(
+                  `tournament_${sessionCode}_participantId`
+                ) === turn.participant.id);
+
+            if (isMyTurn) {
+              toast.info("It's your turn!", "Redirecting to song selection...");
+              router.push(`/tournament/select-song/${sessionCode}`);
+            } else {
+              // Reload session to show updated turn info
+              loadSession();
+            }
+          }
+        });
+
+        channel.subscribe("tournament_completed", () => {
+          if (mounted) {
+            toast.success(
+              "Tournament completed!",
+              "All players have finished their turns."
+            );
+            loadSession();
+            loadCurrentTurn();
+            loadLeaderboard();
+          }
+        });
+
+        channel.subscribe("song_selected", (message) => {
+          if (mounted) {
+            const { turn } = message.data as {
+              turn: {
+                id: string;
+                turnNumber: number;
+                participant: {
+                  id: string;
+                  displayName: string;
+                  turnOrder: number;
+                };
+                song: {
+                  id: string;
+                  title: string;
+                  artist: string;
+                };
+                status: string;
+              };
+            };
+            setCurrentTurn({
+              id: turn.id,
+              turnNumber: turn.turnNumber,
+              participant: turn.participant,
+              song: turn.song,
+              status: turn.status,
+              score: null,
+            });
+            toast.info(
+              "Song selected",
+              `${turn.participant.displayName} is now playing "${turn.song.title}"`
+            );
+          }
+        });
+
+        channel.subscribe("score_submitted", (message) => {
+          if (mounted) {
+            const { turn, participant, nextTurn } = message.data as {
+              turn: {
+                id: string;
+                turnNumber: number;
+                score: number;
+                status: string;
+              };
+              participant: {
+                id: string;
+                displayName: string;
+                totalScore: number;
+              };
+              nextTurn: {
+                id: string;
+                turnNumber: number;
+                participant: {
+                  id: string;
+                  displayName: string;
+                  turnOrder: number;
+                };
+              } | null;
+            };
+            // Update current turn with score
+            setCurrentTurn((prev) =>
+              prev && prev.id === turn.id
+                ? { ...prev, score: turn.score, status: turn.status }
+                : prev
+            );
+            // Reload leaderboard to show updated scores
+            loadLeaderboard();
+            // Show notification
+            toast.success(
+              "Score submitted!",
+              `${participant.displayName} scored ${turn.score} points!`
+            );
+            // If there's a next turn, update current turn
+            if (nextTurn) {
+              // Next player's turn - will be updated when they select a song
+              setCurrentTurn({
+                id: nextTurn.id,
+                turnNumber: nextTurn.turnNumber,
+                participant: nextTurn.participant,
+                song: null,
+                status: "PENDING",
+                score: null,
+              });
+            } else {
+              // Tournament completed
+              setCurrentTurn(null);
+            }
+          }
+        });
       } catch (error) {
         console.error("Error setting up Ably:", error);
       }
@@ -341,7 +529,25 @@ export default function TournamentLobbyPage() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionCode, isSignedIn, router]);
+  }, [sessionCode, isSignedIn, router, currentParticipantId]);
+
+  // Polling fallback for lobby updates (when Ably is unavailable or as backup)
+  // Poll every 5 seconds to check for session updates
+  useEffect(() => {
+    if (!sessionCode) return;
+
+    // Only poll if we don't have an active Ably connection
+    // This provides a fallback for guests or when Ably fails
+    const pollInterval = setInterval(() => {
+      // Only poll if session is WAITING or STARTING (not IN_PROGRESS - that has its own polling)
+      if (session?.status === "WAITING" || session?.status === "STARTING") {
+        loadSession();
+      }
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(pollInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionCode, session?.status]);
 
   useEffect(() => {
     if (sessionCode) {
@@ -377,6 +583,68 @@ export default function TournamentLobbyPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [joinRequests.length]);
 
+  // Load current turn and leaderboard when tournament is in progress
+  useEffect(() => {
+    if (session?.status === "IN_PROGRESS" && sessionCode) {
+      loadCurrentTurn();
+      loadLeaderboard();
+      // Poll for updates every 3 seconds
+      const interval = setInterval(() => {
+        loadCurrentTurn();
+        loadLeaderboard();
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.status, sessionCode]);
+
+  const loadCurrentTurn = async () => {
+    if (!sessionCode) return;
+
+    try {
+      const participantIdParam = currentParticipantId
+        ? `&participantId=${currentParticipantId}`
+        : "";
+
+      const response = await fetch(
+        `/api/tournament/turn/current?sessionCode=${sessionCode}${participantIdParam}`
+      );
+      const data = await response.json();
+
+      if (data.success && data.turn) {
+        setCurrentTurn({
+          id: data.turn.id,
+          turnNumber: data.turn.turnNumber,
+          participant: data.turn.participant,
+          song: data.turn.song,
+          status: data.turn.status,
+          score: null, // Score will be updated via score_submitted event
+        });
+      } else if (data.message?.includes("No active turn")) {
+        setCurrentTurn(null);
+      }
+    } catch (error) {
+      console.error("Error loading current turn:", error);
+    }
+  };
+
+  const loadLeaderboard = async () => {
+    if (!sessionCode) return;
+
+    try {
+      const response = await fetch(
+        `/api/tournament/leaderboard?sessionCode=${sessionCode}`
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        setLeaderboard(data.leaderboard);
+      }
+    } catch (error) {
+      console.error("Error loading leaderboard:", error);
+    }
+  };
+
   const loadSession = async () => {
     if (!sessionCode) {
       setLoading(false);
@@ -405,7 +673,7 @@ export default function TournamentLobbyPage() {
         if (response.status === 404 || data.message?.includes("not found")) {
           // Small delay before redirect to show error message
           setTimeout(() => {
-            router.push("/songs");
+            router.push("/");
           }, 2000);
         }
         return;
@@ -454,7 +722,7 @@ export default function TournamentLobbyPage() {
         // Only redirect if it's actually "not found"
         if (data.message?.includes("not found")) {
           setTimeout(() => {
-            router.push("/songs");
+            router.push("/");
           }, 2000);
         }
       }
@@ -664,11 +932,22 @@ export default function TournamentLobbyPage() {
 
       if (data.success) {
         toast.success("Tournament started!", "Redirecting...");
-        // Redirect will happen via Ably event
-        if (data.firstTurn) {
-          router.push(
-            `/gameplay?tournamentSession=${sessionCode}&turnId=${data.firstTurn.id}`
-          );
+        // Check if it's the current user's turn
+        const isMyTurn =
+          (currentUserId &&
+            session?.participants.find((p) => p.user?.id === currentUserId)
+              ?.id === data.firstTurn?.participant?.id) ||
+          (typeof window !== "undefined" &&
+            sessionStorage.getItem(
+              `tournament_${sessionCode}_participantId`
+            ) === data.firstTurn?.participant?.id);
+
+        if (isMyTurn && data.firstTurn) {
+          // Redirect to song selection page
+          router.push(`/tournament/select-song/${sessionCode}`);
+        } else {
+          // Stay in lobby to watch
+          // The Ably event will handle redirect for other users
         }
       } else {
         toast.error(data.message || "Failed to start tournament");
@@ -996,7 +1275,7 @@ export default function TournamentLobbyPage() {
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               This tournament session doesn&apos;t exist or has expired.
             </p>
-            <Button onClick={() => router.push("/songs")}>Go to Songs</Button>
+            <Button onClick={() => router.push("/")}>Go to Home</Button>
           </div>
         </div>
       </div>
@@ -1026,7 +1305,11 @@ export default function TournamentLobbyPage() {
               </div>
               <div className="flex items-center gap-1">
                 <Clock className="h-4 w-4" />
-                <span>Waiting for players...</span>
+                <span>
+                  {isInProgress
+                    ? "Tournament in progress"
+                    : "Waiting for players..."}
+                </span>
               </div>
             </div>
           </div>
@@ -1041,10 +1324,126 @@ export default function TournamentLobbyPage() {
             </p>
           </div>
 
+          {/* Current Turn Display (Game Room View) */}
+          {isInProgress && currentTurn && (
+            <div className="mb-6 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-6 border-2 border-purple-200 dark:border-purple-800">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                  {currentTurn.status === "PENDING"
+                    ? "🎵 Selecting Song..."
+                    : currentTurn.status === "IN_PROGRESS"
+                    ? "🎤 Now Playing"
+                    : "✅ Turn Complete"}
+                </h2>
+                <div className="flex items-center justify-center gap-3 mb-4">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage
+                      src={
+                        session.participants.find(
+                          (p) => p.id === currentTurn.participant.id
+                        )?.user?.avatar || undefined
+                      }
+                    />
+                    <AvatarFallback>
+                      {currentTurn.participant.displayName
+                        .charAt(0)
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {currentTurn.participant.displayName}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Turn {currentTurn.turnNumber}
+                    </p>
+                  </div>
+                </div>
+                {currentTurn.song && (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      Song
+                    </p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">
+                      {currentTurn.song.title}
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      by {currentTurn.song.artist}
+                    </p>
+                  </div>
+                )}
+                {currentTurn.score !== null && (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+                      Score
+                    </p>
+                    <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                      {currentTurn.score}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Leaderboard */}
+          {isInProgress && leaderboard.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                Leaderboard
+              </h3>
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {leaderboard.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center justify-center text-white font-bold text-sm">
+                          {entry.rank === 1
+                            ? "🥇"
+                            : entry.rank === 2
+                            ? "🥈"
+                            : entry.rank === 3
+                            ? "🥉"
+                            : entry.rank}
+                        </div>
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={entry.user?.avatar || undefined} />
+                          <AvatarFallback>
+                            {entry.displayName.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white">
+                            {entry.displayName}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Turn {entry.turnOrder}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">
+                          {entry.totalScore}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          points
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Participants List */}
           <div className="mb-6">
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
               Players ({session.participants.length})
+              {isInProgress && " - Scores"}
             </p>
             <div className="space-y-2">
               {session.participants.map((participant) => (
@@ -1073,9 +1472,28 @@ export default function TournamentLobbyPage() {
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         Turn {participant.turnOrder}
                       </p>
+                      {isInProgress && (
+                        <p className="text-sm font-semibold text-purple-600 dark:text-purple-400">
+                          {leaderboard.find((l) => l.id === participant.id)
+                            ?.totalScore || 0}{" "}
+                          pts
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* Show current turn indicator */}
+                    {isInProgress &&
+                      currentTurn &&
+                      currentTurn.participant.id === participant.id && (
+                        <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-1 rounded">
+                          {currentTurn.status === "PENDING"
+                            ? "Selecting..."
+                            : currentTurn.status === "IN_PROGRESS"
+                            ? "Playing"
+                            : "Completed"}
+                        </span>
+                      )}
                     {participant.isReady ? (
                       <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded">
                         Ready
@@ -1086,19 +1504,10 @@ export default function TournamentLobbyPage() {
                       </span>
                     )}
                     {/* Show ready toggle button for current user */}
-                    {/* Only show if:
-                        1. User is authenticated AND is a participant (currentUserId matches)
-                        2. OR user is a guest AND has a stored participant ID in sessionStorage
-                        NOT for logged-out authenticated users */}
+                    {/* Show if this participant is the current user (works for both authenticated and guest users) */}
                     {participant &&
-                      ((isSignedIn &&
-                        currentUserId &&
-                        currentParticipant?.id === participant.id) ||
-                        (!isSignedIn &&
-                          typeof window !== "undefined" &&
-                          sessionStorage.getItem(
-                            `tournament_${sessionCode}_participantId`
-                          ) === participant.id)) &&
+                      currentParticipant &&
+                      currentParticipant.id === participant.id &&
                       (session.status === "WAITING" ||
                         session.status === "STARTING") && (
                         <Button

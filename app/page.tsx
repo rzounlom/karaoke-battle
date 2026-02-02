@@ -1,10 +1,36 @@
-import { Mic, Trophy, Users } from "lucide-react";
+"use client";
+
+import { Mic, Trophy, Users, X } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 
 export default function Home() {
+  const router = useRouter();
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [tournamentCode, setTournamentCode] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
+
+  const handleJoinBattle = () => {
+    setShowJoinModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowJoinModal(false);
+    setTournamentCode("");
+  };
+
+  const handleSubmitCode = () => {
+    if (!tournamentCode.trim()) return;
+
+    const code = tournamentCode.trim().toUpperCase();
+    router.push(`/tournament/join/${code}`);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-pink-50 to-indigo-50 dark:from-gray-900 dark:via-purple-900 dark:to-indigo-900">
       <PageHeader title="Karaoke Battle" showNavigation={true} />
@@ -30,12 +56,15 @@ export default function Home() {
                 Start New Battle
               </Button>
             </Link>
-            <Link href="/songs">
-              <Button size="lg" variant="outline" className="text-lg px-8 py-4">
-                <Users className="mr-2 h-5 w-5" />
-                Join Battle
-              </Button>
-            </Link>
+            <Button
+              size="lg"
+              variant="outline"
+              className="text-lg px-8 py-4"
+              onClick={handleJoinBattle}
+            >
+              <Users className="mr-2 h-5 w-5" />
+              Join Battle
+            </Button>
           </div>
 
           {/* Features Grid */}
@@ -134,6 +163,90 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Join Battle Modal */}
+      {showJoinModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          onClick={handleCloseModal}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Join Tournament
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 mt-1">
+                  Enter the tournament code
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleCloseModal}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="tournament-code"
+                    className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                  >
+                    Tournament Code
+                  </label>
+                  <Input
+                    id="tournament-code"
+                    type="text"
+                    placeholder="ABC123"
+                    value={tournamentCode}
+                    onChange={(e) =>
+                      setTournamentCode(e.target.value.toUpperCase())
+                    }
+                    maxLength={8}
+                    className="w-full text-center text-2xl font-mono tracking-wider"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleSubmitCode();
+                      }
+                    }}
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                    Enter the 6-character code provided by the tournament host
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={handleCloseModal}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSubmitCode}
+                    disabled={!tournamentCode.trim() || isJoining}
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                  >
+                    {isJoining ? "Joining..." : "Join Tournament"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="h-[8vh] flex items-center justify-center border-t border-gray-200 dark:border-gray-700">

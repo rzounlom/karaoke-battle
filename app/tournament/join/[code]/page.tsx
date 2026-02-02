@@ -94,7 +94,7 @@ export default function TournamentJoinPage() {
       } else {
         toast.error(data.message || "Failed to load tournament");
         if (data.message?.includes("not found")) {
-          router.push("/songs");
+          router.push("/");
         }
       }
     } catch (error) {
@@ -183,7 +183,7 @@ export default function TournamentJoinPage() {
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               Please check the tournament link and try again.
             </p>
-            <Button onClick={() => router.push("/songs")}>Go to Songs</Button>
+            <Button onClick={() => router.push("/")}>Go to Home</Button>
           </div>
         </div>
       </div>
@@ -217,7 +217,7 @@ export default function TournamentJoinPage() {
             <p className="text-gray-600 dark:text-gray-400 mb-4">
               This tournament session doesn&apos;t exist or has expired.
             </p>
-            <Button onClick={() => router.push("/songs")}>Go to Songs</Button>
+            <Button onClick={() => router.push("/")}>Go to Home</Button>
           </div>
         </div>
       </div>

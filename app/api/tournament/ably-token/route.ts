@@ -7,25 +7,35 @@ import { getAblyServer } from "@/lib/ably-server";
  * Generate an Ably token for authenticated users
  * This token allows clients to connect to Ably channels
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 export async function POST(req: NextRequest) {
   try {
     const user = await currentUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const body = await req.json().catch(() => ({}));
+    const { sessionCode, participantId } = body;
 
     // Get the Ably server instance
     const ably = getAblyServer();
 
-    // Create a token request for this user
-    // The clientId should be the user's Clerk ID
+    let clientId: string;
+
+    if (user) {
+      // Authenticated user - use Clerk ID
+      clientId = user.id;
+    } else if (participantId && sessionCode) {
+      // Guest user - use participant ID as clientId
+      // This allows guests to connect to Ably for real-time updates
+      clientId = `guest_${sessionCode}_${participantId}`;
+    } else {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized - must be authenticated or provide participantId and sessionCode" },
+        { status: 401 }
+      );
+    }
+
+    // Create a token request for this user/guest
     const tokenRequest = await ably.auth.createTokenRequest({
-      clientId: user.id,
+      clientId: clientId,
       capability: {
         // Allow subscribing to any tournament channel
         // In production, you might want to restrict this to specific channels

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // import { ChallengeStatus } from "@prisma/client";
-import { addExperience } from "@/lib/experience";
+import { addExperience, calculateExperienceFromScore } from "@/lib/experience";
 import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
 import { processExpiredChallenges } from "@/lib/challenge-expiration";
@@ -347,10 +347,21 @@ export async function POST(
       return updated?.score !== null;
     });
 
+    console.log("🔍 Checking if all participants completed:", {
+      acceptedParticipantsCount: acceptedParticipants.length,
+      allCompleted,
+      participantScores: updatedParticipants.map((p) => ({
+        userId: p.userId,
+        score: p.score,
+      })),
+    });
+
     let winnerId: string | null = null;
     let pointsAwarded = 0;
 
     if (allCompleted) {
+      console.log("🎉 All participants have completed! Determining winner...");
+      
       // All completed - determine winner (highest score)
       const completedWithScores = updatedParticipants.filter(
         (p) => p.score !== null
@@ -363,16 +374,46 @@ export async function POST(
         );
         winnerId = winnerParticipant.userId;
 
-        // Calculate points: 15,000 * (number of other accepted participants)
-        // Winner gets points for ALL other accepted participants, not just completed ones
+        console.log("🏆 Winner determined:", {
+          winnerId,
+          winnerScore: winnerParticipant.score,
+          allScores: completedWithScores.map((p) => ({
+            userId: p.userId,
+            score: p.score,
+          })),
+        });
+
+        // Calculate XP: Award XP equivalent to getting a 15,000 point score per opponent beaten
+        // Since calculateExperienceFromScore expects 0-100 scale, we'll calculate XP as if
+        // they got a perfect score (100) for each opponent they beat
+        // This gives them the XP equivalent of performing perfectly for each opponent
         const otherParticipantsCount = Math.max(
           0,
           acceptedParticipants.length - 1
         );
-        pointsAwarded = 15000 * otherParticipantsCount;
+
+        // Calculate XP as if they scored 100 (perfect) for each opponent
+        // This simulates getting a perfect song performance for each opponent beaten
+        const xpPerOpponent = calculateExperienceFromScore(
+          100, // Perfect score (0-100 scale)
+          100, // Perfect accuracy
+          100, // Perfect timing
+          100, // Perfect pitch
+          challenge.song.difficulty || "MEDIUM" // Use challenge song difficulty
+        );
+
+        // Total XP = XP per perfect performance × number of opponents
+        pointsAwarded = xpPerOpponent * otherParticipantsCount;
+
+        console.log("💰 XP calculation:", {
+          otherParticipantsCount,
+          xpPerOpponent,
+          pointsAwarded,
+          songDifficulty: challenge.song.difficulty,
+        });
 
         if (pointsAwarded > 0 && winnerId) {
-          // Award points to winner
+          // Award XP to winner
           const winner = await prisma.user.findUnique({
             where: { id: winnerId },
           });
@@ -391,11 +432,25 @@ export async function POST(
                 experience: experienceResult.newExperience,
               },
             });
+
+            console.log("✅ Points awarded to winner:", {
+              winnerId,
+              pointsAwarded,
+              oldLevel: winner.level,
+              newLevel: experienceResult.newLevel,
+              oldExperience: winner.experience,
+              newExperience: experienceResult.newExperience,
+            });
           }
         }
       }
 
       // Update challenge as completed
+      console.log("📝 Updating challenge status to COMPLETED:", {
+        challengeId,
+        winnerId,
+      });
+
       await prisma.challenge.update({
         where: { id: challengeId },
         data: {
@@ -404,6 +459,8 @@ export async function POST(
           winnerId: winnerId,
         },
       });
+
+      console.log("✅ Challenge marked as COMPLETED with winner:", winnerId);
     } else {
       // Not all completed - update status to IN_PROGRESS if not already
       if (challenge.status === "ACCEPTED") {
@@ -471,7 +528,7 @@ export async function POST(
       success: true,
       message: allCompleted
         ? isWinner
-          ? `Congratulations! You won the challenge and earned ${pointsAwarded.toLocaleString()} points!`
+          ? `Congratulations! You won the challenge and earned ${pointsAwarded.toLocaleString()} XP!`
           : "Challenge completed! Better luck next time!"
         : "Score submitted! Waiting for other participants to complete.",
       challenge: updatedChallenge,
